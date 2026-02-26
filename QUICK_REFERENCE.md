@@ -50,12 +50,15 @@ cd /data/.openclaw/workspace && nohup python3 approval_chat_daemon_v2.py > /tmp/
 
 **Check approvals:**
 ```bash
+# Load your bot token from credentials file
+BOT_TOKEN=$(grep '^token:' /data/.openclaw/workspace/memory/approval-gateway-credentials.md | awk '{print $2}')
+
 # Get pending approvals
-curl -H "Authorization: Bearer appr_pygr8ztl3ibkusjum8ixnv25y9w995kk" \
+curl -H "Authorization: Bearer $BOT_TOKEN" \
   "http://localhost:3001/api/bot/pending-approvals?agent_id=kotubot" | jq
 
 # Get chat messages for an approval
-curl -H "Authorization: Bearer appr_pygr8ztl3ibkusjum8ixnv25y9w995kk" \
+curl -H "Authorization: Bearer $BOT_TOKEN" \
   "http://localhost:3001/api/chat-messages/REQUEST_ID" | jq
 ```
 
@@ -65,7 +68,7 @@ curl -H "Authorization: Bearer appr_pygr8ztl3ibkusjum8ixnv25y9w995kk" \
 
 **Approval Gateway:**
 - API: `http://localhost:3001`
-- Bot token: `appr_pygr8ztl3ibkusjum8ixnv25y9w995kk`
+- Bot token: Retrieve from the app under Settings → Bot Tokens, save to `memory/approval-gateway-credentials.md`
 - Agent ID: `kotubot`
 
 **ClawbackX:**
@@ -103,7 +106,7 @@ curl -H "Authorization: Bearer appr_pygr8ztl3ibkusjum8ixnv25y9w995kk" \
 → Check state saves after each response, not at end
 
 **API authentication fails:**
-→ Verify bot token: `appr_pygr8ztl3ibkusjum8ixnv25y9w995kk`
+→ Check `memory/approval-gateway-credentials.md` has a valid `token:` line. Retrieve token from the app under Settings → Bot Tokens.
 
 **Backend not responding:**
 → `curl http://localhost:3001/health`

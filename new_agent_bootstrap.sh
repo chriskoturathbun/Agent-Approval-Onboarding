@@ -94,7 +94,17 @@ echo ""
 
 # 5. Quick API test
 echo "🔐 Testing Approval Gateway API..."
-RESPONSE=$(curl -s -H "Authorization: Bearer appr_pygr8ztl3ibkusjum8ixnv25y9w995kk" \
+CREDS_FILE="/data/.openclaw/workspace/memory/approval-gateway-credentials.md"
+if [ ! -f "$CREDS_FILE" ]; then
+    echo "  ❌ Credentials file missing: $CREDS_FILE"
+    echo "     Retrieve your bot token from the app (Settings → Bot Tokens) and save it there."
+    echo ""
+    echo "================================="
+    echo "✅ Bootstrap check complete (with warnings)!"
+    exit 1
+fi
+BOT_TOKEN=$(grep '^token:' "$CREDS_FILE" | awk '{print $2}')
+RESPONSE=$(curl -s -H "Authorization: Bearer $BOT_TOKEN" \
     "http://localhost:3001/api/bot/pending-approvals?agent_id=kotubot" 2>&1)
 
 if echo "$RESPONSE" | jq -e '.approvals' > /dev/null 2>&1; then

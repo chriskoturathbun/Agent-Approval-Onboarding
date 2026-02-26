@@ -57,6 +57,6 @@ if message:
 
 **CREDENTIALS:**
 - API Base: http://localhost:3001
-- Bot Token: appr_f425c03205df58ba0f3efb3008c0d296cfd75410cb8c9dfb99b002d3067a798b
+- Bot Token: Loaded from `memory/approval-gateway-credentials.md` (retrieve from app: Settings → Bot Tokens)
 - Agent ID: kotubot
 - Note: Bot token automatically identifies user (no user_id needed)

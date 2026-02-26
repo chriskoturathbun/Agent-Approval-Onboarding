@@ -92,7 +92,7 @@ curl http://localhost:3001/health
 - `GET /api/chat-messages/{request_id}` - Get chat messages
 - `POST /api/chat-messages` - Send chat message
 
-**Bot token (Christopher):** `appr_pygr8ztl3ibkusjum8ixnv25y9w995kk`
+**Bot token:** Retrieve from the Approval Gateway app under Settings → Bot Tokens, then save to `memory/approval-gateway-credentials.md`
 
 ### 3. ClawbackX Integration
 **Status:** ✅ Monitoring via heartbeat  
@@ -124,7 +124,7 @@ When you receive a heartbeat poll, check:
 **Location:** `memory/` folder (gitignored, not pushed to GitHub)
 
 **Approval Gateway:**
-- Bot token: `appr_pygr8ztl3ibkusjum8ixnv25y9w995kk`
+- Bot token: Retrieve from the app under Settings → Bot Tokens, save to `memory/approval-gateway-credentials.md`
 - API base: `http://localhost:3001`
 - Agent ID: `kotubot`
 
@@ -149,7 +149,8 @@ ps aux | grep approval_chat_daemon_v2
 curl http://localhost:3001/health
 
 # 3. Can fetch pending approvals?
-curl -H "Authorization: Bearer appr_pygr8ztl3ibkusjum8ixnv25y9w995kk" \
+BOT_TOKEN=$(grep '^token:' /data/.openclaw/workspace/memory/approval-gateway-credentials.md | awk '{print $2}')
+curl -H "Authorization: Bearer $BOT_TOKEN" \
   "http://localhost:3001/api/bot/pending-approvals?agent_id=kotubot"
 
 # 4. State files exist?
@@ -285,7 +286,7 @@ Ready to work. What needs attention?
 **Fix:** State not saving after each response. Check `approval_chat_daemon_v2.py` saves state immediately after sending each message.
 
 **Problem:** Can't authenticate to Approval Gateway  
-**Fix:** Check bot token in script matches `appr_pygr8ztl3ibkusjum8ixnv25y9w995kk`
+**Fix:** Check that `memory/approval-gateway-credentials.md` exists and contains a valid `token:` line. Retrieve your bot token from the app under Settings → Bot Tokens.
 
 **Problem:** No recent memory logs  
 **Fix:** Normal if it's a new day. Create `memory/YYYY-MM-DD.md` and start logging.

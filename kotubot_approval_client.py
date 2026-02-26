@@ -136,21 +136,26 @@ class ApprovalGatewayClient:
 # ============ KOTUBOT INTEGRATION HELPERS ============
 
 def load_credentials() -> Dict[str, str]:
-    """Load Approval Gateway credentials from memory file"""
+    """Load Approval Gateway credentials from memory file.
+
+    Expects a file at the path below with at least a `token:` line.
+    Retrieve your bot token from the Approval Gateway app under Settings → Bot Tokens.
+    """
     creds_path = '/data/.openclaw/workspace/memory/approval-gateway-credentials.md'
-    
-    # Default credentials
-    defaults = {
+
+    if not os.path.exists(creds_path):
+        raise FileNotFoundError(
+            f"Credentials file not found: {creds_path}\n"
+            "Retrieve your bot token from the Approval Gateway app (Settings → Bot Tokens) "
+            "and save it to that file with the line:\n  token: appr_<your_token_here>"
+        )
+
+    creds = {
         'api_base': 'http://localhost:3001',
-        'bot_token': 'appr_f425c03205df58ba0f3efb3008c0d296cfd75410cb8c9dfb99b002d3067a798b',
+        'bot_token': None,
         'agent_id': 'kotubot',
     }
-    
-    if not os.path.exists(creds_path):
-        return defaults
-    
-    # Parse credentials from markdown file
-    creds = defaults.copy()
+
     with open(creds_path, 'r') as f:
         for line in f:
             if ':' in line and not line.startswith('#'):
@@ -164,7 +169,13 @@ def load_credentials() -> Dict[str, str]:
                         creds['api_base'] = value
                     elif key == 'agent_id':
                         creds['agent_id'] = value
-    
+
+    if not creds['bot_token']:
+        raise ValueError(
+            f"No `token:` line found in {creds_path}\n"
+            "Add a line like:  token: appr_<your_token_here>"
+        )
+
     return creds
 
 
