@@ -1,0 +1,9 @@
+# Sensitive files (never commit)
+memory/
+*credentials*.md
+*.json
+.env
+.env.local
+
+# Logs
+*.log
