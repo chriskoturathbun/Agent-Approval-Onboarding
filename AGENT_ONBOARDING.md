@@ -50,7 +50,7 @@ Once the user gives you the bot token and agent ID, create this file:
 Contents (fill in the values the user gave you):
 ```
 token: appr_<bot_token_from_app>
-api_base: http://localhost:3001
+api_base: https://approvals.clawbackx.com
 agent_id: <agent_id_from_app>
 ```
 
@@ -228,7 +228,7 @@ Run these to confirm everything is working:
 pgrep -f approval_chat_daemon_v2 && echo "✅ Running" || echo "❌ Not running"
 
 # 2. Backend healthy?
-curl -s http://localhost:3001/health | jq
+curl -s https://approvals.clawbackx.com/health | jq
 
 # 3. Credentials file exists?
 ls -la /data/.openclaw/workspace/memory/approval-gateway-credentials.md
@@ -236,7 +236,7 @@ ls -la /data/.openclaw/workspace/memory/approval-gateway-credentials.md
 # 4. Can fetch pending approvals?
 BOT_TOKEN=$(grep '^token:' /data/.openclaw/workspace/memory/approval-gateway-credentials.md | awk '{print $2}')
 curl -s -H "Authorization: Bearer $BOT_TOKEN" \
-  "http://localhost:3001/api/bot/pending-approvals?agent_id=kotubot" | jq '.approvals | length'
+  "https://approvals.clawbackx.com/api/bot/pending-approvals?agent_id=kotubot" | jq '.approvals | length'
 
 # 5. State files exist?
 ls /data/.openclaw/workspace/memory/*.json 2>/dev/null || echo "(none yet — created on first use)"
@@ -274,7 +274,7 @@ nohup python3 approval_chat_daemon_v2.py > /tmp/approval-daemon-v2.log 2>&1 &
 
 **Backend not responding**
 ```bash
-curl http://localhost:3001/health
+curl https://approvals.clawbackx.com/health
 ps aux | grep node
 ```
 
