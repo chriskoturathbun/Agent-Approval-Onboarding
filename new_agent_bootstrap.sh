@@ -111,26 +111,66 @@ done
 
 echo ""
 
-# 6. Quick API test
-echo "🔐 Testing Approval Gateway API..."
+# 6. Activation check — credentials & API test
+echo "🔐 Checking approval layer activation..."
 CREDS_FILE="/data/.openclaw/workspace/memory/approval-gateway-credentials.md"
+
 if [ ! -f "$CREDS_FILE" ]; then
-    echo "  ❌ Credentials file missing: $CREDS_FILE"
-    echo "     Retrieve your bot token from the app (Settings → Bot Tokens) and save it there."
+    echo ""
+    echo "  🔴 APPROVAL LAYER IS INACTIVE"
+    echo "  ════════════════════════════════════════════"
+    echo "  The credentials file is missing:"
+    echo "  $CREDS_FILE"
+    echo ""
+    echo "  To activate, tell the user:"
+    echo ""
+    echo "  1. Download the Clawback Approval app (iOS/Android)"
+    echo "  2. Open app → Settings → Bot Tokens"
+    echo "  3. Copy their Bot Token and Agent ID"
+    echo "  4. Provide both to this agent"
+    echo ""
+    echo "  Then create the credentials file:"
+    echo "  token: appr_<bot_token_from_app>"
+    echo "  api_base: http://localhost:3001"
+    echo "  agent_id: <agent_id_from_app>"
+    echo ""
+    echo "  ⚠️  No purchases can be processed until this is done."
+    echo "  ════════════════════════════════════════════"
     echo ""
     echo "================================="
-    echo "✅ Bootstrap check complete (with warnings)!"
+    echo "⚠️  Bootstrap complete — approval layer INACTIVE"
     exit 1
 fi
+
+# Validate credentials file has required fields
 BOT_TOKEN=$(grep '^token:' "$CREDS_FILE" | awk '{print $2}')
+AGENT_ID=$(grep '^agent_id:' "$CREDS_FILE" | awk '{print $2}')
+
+if [ -z "$BOT_TOKEN" ]; then
+    echo "  ❌ Credentials file found but missing 'token:' line"
+    echo "     Ask the user to re-copy their bot token from the app (Settings → Bot Tokens)"
+    exit 1
+fi
+
+if [ -z "$AGENT_ID" ]; then
+    echo "  ❌ Credentials file found but missing 'agent_id:' line"
+    echo "     Ask the user to check their agent ID in the app (Settings → Bot Tokens)"
+    exit 1
+fi
+
+echo "  ✅ Bot token present"
+echo "  ✅ Agent ID: $AGENT_ID"
+
+# Live API test
 RESPONSE=$(curl -s -H "Authorization: Bearer $BOT_TOKEN" \
-    "http://localhost:3001/api/bot/pending-approvals?agent_id=kotubot" 2>&1)
+    "http://localhost:3001/api/bot/pending-approvals?agent_id=${AGENT_ID}" 2>&1)
 
 if echo "$RESPONSE" | jq -e '.approvals' > /dev/null 2>&1; then
     APPROVAL_COUNT=$(echo "$RESPONSE" | jq '.approvals | length')
-    echo "  ✅ API responding ($APPROVAL_COUNT pending approvals)"
+    echo "  ✅ Approval layer ACTIVE ($APPROVAL_COUNT pending approvals)"
 else
     echo "  ❌ API not responding or credentials invalid"
+    echo "     Ask the user to re-copy their bot token and agent ID from the app"
 fi
 
 echo ""

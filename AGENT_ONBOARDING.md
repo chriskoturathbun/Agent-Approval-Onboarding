@@ -10,31 +10,64 @@ The Python client is at `/data/.openclaw/workspace/kotubot_approval_client.py`. 
 
 ---
 
+## 🔌 Activation Check — Do This Before Anything Else
+
+Before you can operate, check whether the approval layer is active.
+
+```bash
+ls /data/.openclaw/workspace/memory/approval-gateway-credentials.md
+```
+
+**If the file exists → skip to [One-Time Setup](#one-time-setup) step 2.**
+
+**If the file does NOT exist → the approval layer is inactive. Tell the user:**
+
+> "To activate the approval layer, I need two things from you:
+>
+> 1. **Download the Clawback Approval app** on your phone (iOS/Android)
+> 2. Open the app → go to **Settings → Bot Tokens**
+> 3. Copy your **Bot Token** and your **Agent ID**
+> 4. Paste them here and I'll save them to the credentials file
+>
+> Until I have these, I cannot submit or receive spending decisions — the approval layer is off."
+
+Do not proceed with any purchase-related work until the user provides both values. The system is not functional without them.
+
+---
+
 ## 🚀 One-Time Setup (First Run Only)
 
 If any of these are already done, skip that step.
 
-### Step 1 — Get Your Bot Token
-1. Open the Approval Gateway app
-2. Go to **Settings → Bot Tokens**
-3. Copy your token
-4. Create the credentials file:
+### Step 1 — Save Credentials from the App
+
+Once the user gives you the bot token and agent ID, create this file:
 
 ```
 /data/.openclaw/workspace/memory/approval-gateway-credentials.md
 ```
 
-Contents:
+Contents (fill in the values the user gave you):
 ```
-token: appr_<your_token_here>
+token: appr_<bot_token_from_app>
 api_base: http://localhost:3001
-agent_id: kotubot
+agent_id: <agent_id_from_app>
 ```
 
+Both values come from the Clawback Approval app under **Settings → Bot Tokens**. The agent ID is unique per user — do not hardcode it.
+
 ### Step 2 — Install the Daemon
-Copy the daemon from this repo to your workspace:
+
+The bootstrap script handles this automatically. Run it:
 ```bash
-cp /path/to/this/repo/approval_chat_daemon_v2.py /data/.openclaw/workspace/approval_chat_daemon_v2.py
+bash /path/to/this/repo/new_agent_bootstrap.sh
+```
+
+It will copy `approval_chat_daemon_v2.py` to your workspace if it's not already there.
+
+Or copy manually:
+```bash
+cp /path/to/this/repo/approval_chat_daemon_v2.py /data/.openclaw/workspace/
 ```
 
 ### Step 3 — Start the Daemon
@@ -43,14 +76,14 @@ cd /data/.openclaw/workspace
 nohup python3 approval_chat_daemon_v2.py > /tmp/approval-daemon-v2.log 2>&1 &
 ```
 
-The daemon runs in the background and polls approval chat every 5 seconds. It responds to user questions using your model context automatically.
+The daemon runs in the background, polls approval chat every 5 seconds, and responds to user questions using your model context automatically.
 
 ### Step 4 — Verify Everything
 ```bash
 bash /data/.openclaw/workspace/new_agent_bootstrap.sh
 ```
 
-All checks should pass before you start working.
+All checks should pass before you start working. If the API test fails, the credentials are wrong — ask the user to re-copy the token and agent ID from the app.
 
 ---
 
