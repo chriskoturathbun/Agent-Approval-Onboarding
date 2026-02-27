@@ -35,7 +35,7 @@ When heartbeat fires:
 When heartbeat fires:
 1. Run `python3 /data/.openclaw/workspace/kotubot_approval_client.py` to check approvals
    - Uses credentials from memory/approval-gateway-credentials.md
-   - API base: http://localhost:3001
+   - API base: https://approvals.clawbackx.com
 2. For each approval:
    - If status=approved + deal_slug exists → Commit to ClawbackX deal
    - If status=denied → Log reason, skip deal
@@ -56,7 +56,7 @@ if message:
 ```
 
 **CREDENTIALS:**
-- API Base: http://localhost:3001
+- API Base: https://approvals.clawbackx.com
 - Bot Token: Loaded from `memory/approval-gateway-credentials.md` (retrieve from app: Settings → Bot Tokens)
 - Agent ID: kotubot
 - Note: Bot token automatically identifies user (no user_id needed)
