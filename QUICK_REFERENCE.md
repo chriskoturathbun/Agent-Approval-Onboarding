@@ -35,7 +35,7 @@ bash /data/.openclaw/workspace/new_agent_bootstrap.sh
 ps aux | grep approval_chat_daemon_v2
 
 # Backend healthy?
-curl http://localhost:3001/health
+curl https://approvals.clawbackx.com/health
 
 # View daemon logs
 tail -f /tmp/approval-daemon-v2.log
@@ -56,11 +56,11 @@ AGENT_ID=$(grep '^agent_id:' /data/.openclaw/workspace/memory/approval-gateway-c
 
 # Get pending approvals
 curl -H "Authorization: Bearer $BOT_TOKEN" \
-  "http://localhost:3001/api/bot/pending-approvals?agent_id=$AGENT_ID" | jq
+  "https://approvals.clawbackx.com/api/bot/pending-approvals?agent_id=$AGENT_ID" | jq
 
 # Get chat messages for an approval
 curl -H "Authorization: Bearer $BOT_TOKEN" \
-  "http://localhost:3001/api/chat-messages/REQUEST_ID" | jq
+  "https://approvals.clawbackx.com/api/chat-messages/REQUEST_ID" | jq
 ```
 
 **Verify daemon before running:**
@@ -74,7 +74,7 @@ bash /data/.openclaw/workspace/verify_daemon.sh
 ## 🔐 Credentials
 
 **Approval Gateway:**
-- API: `http://localhost:3001`
+- API: `https://approvals.clawbackx.com`
 - Bot token + Agent ID: Retrieve from the Clawback Approval app → **Settings → Bot Tokens**
 - Save both to: `memory/approval-gateway-credentials.md`
 - ⚠️ Agent ID is user-specific — never hardcode it
@@ -123,7 +123,7 @@ bash /data/.openclaw/workspace/verify_daemon.sh
 → Check `memory/approval-gateway-credentials.md` has valid `token:` and `agent_id:` lines
 
 **Backend not responding:**
-→ `curl http://localhost:3001/health`
+→ `curl https://approvals.clawbackx.com/health`
 
 **Missing context:**
 → Read onboarding: `AGENT_ONBOARDING.md`
@@ -148,7 +148,7 @@ See: `HEARTBEAT.md` for full details
 
 Status:
 - Approval daemon: ✅ Running (PID XXXXX)
-- Backend: ✅ http://localhost:3001/health
+- Backend: ✅ https://approvals.clawbackx.com/health
 - ClawbackX: X commitments (status)
 - Pending approvals: X requests
 
