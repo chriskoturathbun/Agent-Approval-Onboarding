@@ -107,6 +107,14 @@ def save_state(state: Dict) -> None:
 # API helpers
 # ─────────────────────────────────────────────
 
+def _base_headers(token: str) -> Dict:
+    return {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+        'User-Agent': 'ApprovalChatDaemon/2.0',
+    }
+
+
 def api_get(url: str, headers: Dict) -> Optional[Dict]:
     try:
         req = Request(url, headers=headers, method='GET')
@@ -163,33 +171,83 @@ def generate_response(
     """
     Generate a response to a user's approval chat message.
 
+    Uses request context to answer common questions. Replace the body of this
+    function with a call to your agent model API for fully intelligent responses.
+
     ┌─────────────────────────────────────────────────────────────────┐
     │  AGENT MODEL HOOK                                               │
     │                                                                 │
-    │  This function is where your agent model (OpenClaw, Claude,    │
-    │  etc.) should generate a response. It receives:                │
-    │    - context: full SOUL/USER/MEMORY/AGENTS file contents       │
-    │    - approval_request: the pending spend request details       │
-    │    - new_message: the user's chat message to respond to        │
+    │  Replace the logic below with a call to your model API:        │
     │                                                                 │
-    │  Replace the template below with a call to your model API.     │
-    │  Example stub for OpenClaw:                                    │
-    │                                                                 │
-    │    from openclaw import complete                                │
     │    prompt = build_prompt(context, approval_request, new_message)│
-    │    return complete(prompt)                                      │
+    │    return your_model.complete(prompt)                           │
     └─────────────────────────────────────────────────────────────────┘
     """
-    vendor = approval_request.get('vendor', 'Unknown vendor')
-    amount = approval_request.get('spending_amount_cents', 0) / 100
-    reason = approval_request.get('reason', '')
-    user_msg = new_message.get('message', '')  # API returns 'message' field
+    vendor   = approval_request.get('vendor', 'Unknown vendor')
+    amount   = approval_request.get('spending_amount_cents', 0) / 100
+    reason   = approval_request.get('reason', '(no reason provided)')
+    category = approval_request.get('category', '')
+    user_msg = new_message.get('message', '')
+    msg_low  = user_msg.lower().strip()
 
-    # Default template response — replace this with your model call
+    # ── Reason / why questions ────────────────────────────────────────
+    if any(w in msg_low for w in ['why', 'reason', 'purpose', 'what for', 'explain', 'justify']):
+        return (
+            f"The reason I submitted this ${amount:.2f} request to {vendor}:\n\n"
+            f"{reason}\n\n"
+            f"Let me know if you need anything else before deciding."
+        )
+
+    # ── More info / details ───────────────────────────────────────────
+    if any(w in msg_low for w in ['more info', 'details', 'tell me more', 'elaborate',
+                                   'what is', "what's", 'more context', 'give me more']):
+        lines = [
+            f"Full details for this request:\n",
+            f"• Vendor:   {vendor}",
+            f"• Amount:   ${amount:.2f}",
+        ]
+        if category:
+            lines.append(f"• Category: {category}")
+        lines.append(f"• Reason:   {reason}")
+        lines.append(f"\nHappy to answer any follow-up questions.")
+        return "\n".join(lines)
+
+    # ── Approval confirmation ─────────────────────────────────────────
+    if any(w in msg_low for w in ['approve', 'yes', 'ok', 'sure', 'go ahead',
+                                   'looks good', 'fine', 'proceed']):
+        return (
+            f"Thanks — tap Approve in the app to confirm. "
+            f"Once approved I'll proceed with the ${amount:.2f} {vendor} purchase."
+        )
+
+    # ── Denial confirmation ───────────────────────────────────────────
+    if any(w in msg_low for w in ['deny', 'no', 'reject', 'decline', 'cancel',
+                                   'don\'t', 'do not', 'stop']):
+        return (
+            f"Got it — tap Deny in the app to reject this request. "
+            f"I'll find an alternative approach that doesn't require this spend."
+        )
+
+    # ── Alternatives / options ────────────────────────────────────────
+    if any(w in msg_low for w in ['alternative', 'other option', 'different', 'instead']):
+        return (
+            f"I can explore alternatives to {vendor} if you prefer. "
+            f"Deny this request in the app and let me know what constraints to work within."
+        )
+
+    # ── Amount / cost questions ───────────────────────────────────────
+    if any(w in msg_low for w in ['cost', 'price', 'amount', 'how much', 'expensive']):
+        return (
+            f"The total for this request is ${amount:.2f} at {vendor}. "
+            f"Reason: {reason}"
+        )
+
+    # ── Fallback: echo the question with full context ─────────────────
     return (
-        f"On the ${amount:.2f} {vendor} request: {reason}\n\n"
-        f"Re: \"{user_msg}\" — I can clarify further if needed. "
-        f"Approve or deny in the app when ready."
+        f"You asked: \"{user_msg}\"\n\n"
+        f"Context for this request — {vendor} · ${amount:.2f}:\n"
+        f"{reason}\n\n"
+        f"Let me know if you'd like more detail on any part of this."
     )
 
 
@@ -207,10 +265,7 @@ def poll_once(creds: Dict, state: Dict) -> Dict:
     """
     api_base = creds['api_base']
     agent_id = creds['agent_id']
-    headers = {
-        'Authorization': f"Bearer {creds['bot_token']}",
-        'Content-Type': 'application/json'
-    }
+    headers  = _base_headers(creds['bot_token'])
 
     now = datetime.now(timezone.utc).isoformat()
 
@@ -244,7 +299,6 @@ def poll_once(creds: Dict, state: Dict) -> Dict:
         # 3. Find messages we haven't responded to yet
         new_messages = []
         for msg in messages:
-            # Only respond to user messages (not our own)
             if msg.get('sender') == 'agent':
                 continue
             msg_time = msg.get('created_at', '')
@@ -265,9 +319,9 @@ def poll_once(creds: Dict, state: Dict) -> Dict:
                 f"{api_base}/api/chat-messages",
                 headers,
                 {
-                    'approval_request_id': request_id,  # API field name
+                    'approval_request_id': request_id,
                     'sender': 'agent',
-                    'message': response_text             # API field name
+                    'message': response_text
                 }
             )
 
