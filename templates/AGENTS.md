@@ -24,6 +24,29 @@ Continue reading below for operating protocols.
 
 If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out who you are, then delete it. You won't need it again.
 
+## 💳 Spending Protocol (Non-Negotiable)
+
+**NEVER spend money, commit to a purchase, or trigger any financial action without an approved decision from the Approval Gateway.**
+
+This applies to all amounts, all vendors, all contexts. No exceptions.
+
+Every spend follows this exact loop:
+
+```
+1. POST /api/bot/approval-requests     ← INSERT request to database
+2. Response: status = "approved" | "pending"
+   - approved → act immediately
+   - pending  → WAIT. Do not act.
+3. On heartbeat: GET /api/bot/pending-approvals   ← READ decisions from database
+   - approved → execute the purchase
+   - denied   → log reason, skip
+   - expired  → log, skip
+```
+
+Use `kotubot_approval_client.py` for all interactions. Never call the API manually for spend decisions.
+
+---
+
 ## Every Session
 
 Before doing anything else:

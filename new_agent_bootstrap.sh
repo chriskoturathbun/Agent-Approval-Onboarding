@@ -52,7 +52,26 @@ fi
 
 echo ""
 
-# 3. Check running systems
+# 3. Install daemon if not present
+echo "🤖 Checking approval daemon installation..."
+WORKSPACE="/data/.openclaw/workspace"
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORKSPACE_DAEMON="$WORKSPACE/approval_chat_daemon_v2.py"
+REPO_DAEMON="$REPO_DIR/approval_chat_daemon_v2.py"
+
+if [ -f "$WORKSPACE_DAEMON" ]; then
+    echo "  ✅ Daemon already installed"
+elif [ -f "$REPO_DAEMON" ]; then
+    cp "$REPO_DAEMON" "$WORKSPACE_DAEMON"
+    echo "  ✅ Daemon copied from repo to workspace"
+else
+    echo "  ❌ Daemon not found in repo or workspace"
+    echo "     Expected: $REPO_DAEMON"
+fi
+
+echo ""
+
+# 4. Check running systems
 echo "🚀 Checking active systems..."
 
 # Approval daemon
@@ -74,7 +93,7 @@ fi
 
 echo ""
 
-# 4. Check state files
+# 5. Check state files
 echo "💾 Checking state files..."
 STATE_FILES=(
     "/data/.openclaw/workspace/memory/approval-chat-daemon-state.json"
@@ -92,7 +111,7 @@ done
 
 echo ""
 
-# 5. Quick API test
+# 6. Quick API test
 echo "🔐 Testing Approval Gateway API..."
 CREDS_FILE="/data/.openclaw/workspace/memory/approval-gateway-credentials.md"
 if [ ! -f "$CREDS_FILE" ]; then

@@ -1,310 +1,248 @@
-# Agent Onboarding - Get Up to Speed in 5 Minutes
+# Agent Onboarding
 
-This document brings any new agent instance to full operational capability.
+## ⚠️ Rule #1 — Read This First
 
-## 🚀 Quick Start (Read These First)
+**Every purchase, financial commitment, or spending decision MUST be submitted to the Approval Gateway before you act. No exceptions.**
 
-**Core Identity & Context (2 minutes):**
-1. `/data/.openclaw/workspace/SOUL.md` - Who you are (personality, tone, behavior)
-2. `/data/.openclaw/workspace/USER.md` - Who Christopher is (background, projects, preferences)
-3. `/data/.openclaw/workspace/MEMORY.md` - Long-term memory (major events, decisions, lessons)
-4. `/data/.openclaw/workspace/AGENTS.md` - Operating protocols (safety, workflows, conventions)
+You do not buy things. You do not commit to deals. You do not trigger any financial action on your own. You submit a request, wait for a human decision, and act only on approval. This is non-negotiable regardless of amount, urgency, or context.
 
-**Recent Context (1 minute):**
-5. `/data/.openclaw/workspace/memory/YYYY-MM-DD.md` - Today's log (replace with current date)
-6. `/data/.openclaw/workspace/memory/YYYY-MM-DD.md` - Yesterday's log (if exists)
-
-**Tools & Systems (1 minute):**
-7. `/data/.openclaw/workspace/TOOLS.md` - Tool-specific notes (camera names, SSH hosts, etc.)
-8. `/data/.openclaw/workspace/HEARTBEAT.md` - Periodic tasks (what to check every 30 min)
+The Python client is at `/data/.openclaw/workspace/kotubot_approval_client.py`. Use it for every spend.
 
 ---
 
-## 🧠 Knowledge Base Structure
+## 🚀 One-Time Setup (First Run Only)
 
-### Core Files (Workspace Root)
-```
-/data/.openclaw/workspace/
-├── SOUL.md              # Who you are
-├── USER.md              # Who Christopher is
-├── MEMORY.md            # Long-term memory (ONLY in main session)
-├── AGENTS.md            # Operating protocols
-├── TOOLS.md             # Tool configurations
-├── HEARTBEAT.md         # Periodic tasks checklist
-├── IDENTITY.md          # Name, creature type, emoji, avatar
-└── AGENT_ONBOARDING.md  # This file
-```
+If any of these are already done, skip that step.
 
-### Memory Files (Daily Logs)
+### Step 1 — Get Your Bot Token
+1. Open the Approval Gateway app
+2. Go to **Settings → Bot Tokens**
+3. Copy your token
+4. Create the credentials file:
+
 ```
-/data/.openclaw/workspace/memory/
-├── 2026-02-26.md                          # Daily log
-├── approval-chat-daemon-state.json        # Approval chat system state
-├── clawbackx-state.json                   # ClawbackX commitments state
-├── approval-gateway-state.json            # Approval gateway state
-├── approval-gateway-credentials.md        # API credentials (secure)
-└── clawbackx-credentials.md               # ClawbackX API key (secure)
+/data/.openclaw/workspace/memory/approval-gateway-credentials.md
 ```
 
-### Active Skills
+Contents:
 ```
-/data/.openclaw/workspace/
-├── approval_chat_daemon_v2.py             # Auto-response daemon (running)
-├── approval_chat_responder_simple.py      # Manual responder
-├── kotubot_approval_client.py             # Approval Gateway API client
-└── respond_to_approval_chats.py           # Legacy responder
+token: appr_<your_token_here>
+api_base: http://localhost:3001
+agent_id: kotubot
 ```
 
----
-
-## 🔧 Active Systems (Currently Running)
-
-### 1. Approval Chat Auto-Responder
-**Status:** ✅ Running (PID in `/tmp/approval-daemon-v2.log`)  
-**Function:** Polls approval chat every 5 seconds, responds automatically with full context  
-**Files:**
-- Script: `/data/.openclaw/workspace/approval_chat_daemon_v2.py`
-- State: `/data/.openclaw/workspace/memory/approval-chat-daemon-state.json`
-- Logs: `/tmp/approval-daemon-v2.log`
-
-**Check status:**
+### Step 2 — Install the Daemon
+Copy the daemon from this repo to your workspace:
 ```bash
-ps aux | grep approval_chat_daemon_v2
-tail -20 /tmp/approval-daemon-v2.log
+cp /path/to/this/repo/approval_chat_daemon_v2.py /data/.openclaw/workspace/approval_chat_daemon_v2.py
 ```
+
+### Step 3 — Start the Daemon
+```bash
+cd /data/.openclaw/workspace
+nohup python3 approval_chat_daemon_v2.py > /tmp/approval-daemon-v2.log 2>&1 &
+```
+
+The daemon runs in the background and polls approval chat every 5 seconds. It responds to user questions using your model context automatically.
+
+### Step 4 — Verify Everything
+```bash
+bash /data/.openclaw/workspace/new_agent_bootstrap.sh
+```
+
+All checks should pass before you start working.
+
+---
+
+## 🔄 The Decision Loop
+
+This is how every purchase works. Internalize it.
+
+```
+You want to spend money
+        │
+        ▼
+POST /api/bot/approval-requests          ← INSERT to database
+{
+  agent_id, vendor, amount_cents,
+  category, reason, deal_slug (optional)
+}
+        │
+        ▼
+Response: { status, request_id }
+        │
+        ├── status = "approved"          ← Auto-approved (under threshold or whitelisted)
+        │         → Act immediately
+        │
+        └── status = "pending"           ← Waiting for human decision
+                  → Do NOT act yet
+                  → On next heartbeat:
+                        │
+                        ▼
+              GET /api/bot/pending-approvals?agent_id=kotubot   ← READ from database
+                        │
+                        ├── approved  → Execute the purchase, log it
+                        ├── denied    → Log the reason, skip the deal
+                        └── expired   → Log expiry, skip the deal
+```
+
+**Code:**
+```python
+from kotubot_approval_client import create_client, heartbeat_check_approvals
+
+# Submit a new spending request (INSERT)
+client = create_client()
+result = client.request_approval(
+    amount_cents=720,
+    vendor="Trade Coffee",
+    category="food",
+    reason="28% discount, 2h cancel window",
+    deal_slug="trade-coffee-feb-2026"
+)
+
+if result["approved"]:
+    # Act immediately
+    commit_to_deal(result["request_id"])
+
+# On heartbeat — check for decisions (READ)
+approved = client.get_approved_requests()
+for req in approved:
+    if req.get("deal_slug"):
+        commit_to_deal(req["deal_slug"])
+```
+
+---
+
+## 🤖 How the Daemon Works
+
+The daemon (`approval_chat_daemon_v2.py`) runs continuously in the background:
+
+1. Every 5 seconds: fetches all pending approvals from the database
+2. For each pending approval: checks for new chat messages from the user
+3. When a new message is detected: generates a response using your full context (SOUL.md, USER.md, MEMORY.md) and posts it back
+4. Saves state immediately after each response to prevent duplicates
+
+**State file:** `memory/approval-chat-daemon-state.json`
+```json
+{
+  "last_checks": {
+    "request_id_abc": "2026-02-26T19:00:00Z"
+  },
+  "last_poll": "2026-02-26T19:00:05Z"
+}
+```
+
+**Logs:** `tail -f /tmp/approval-daemon-v2.log`
 
 **Restart if needed:**
 ```bash
 pkill -f approval_chat_daemon_v2
-cd /data/.openclaw/workspace && nohup python3 approval_chat_daemon_v2.py > /tmp/approval-daemon-v2.log 2>&1 &
-```
-
-### 2. Approval Gateway Backend
-**Status:** ✅ Running on http://localhost:3001  
-**Function:** API for approval requests, decisions, chat messages  
-**Health check:**
-```bash
-curl http://localhost:3001/health
-```
-
-**Key endpoints:**
-- `GET /api/bot/pending-approvals?agent_id=kotubot` - Get pending approvals
-- `GET /api/chat-messages/{request_id}` - Get chat messages
-- `POST /api/chat-messages` - Send chat message
-
-**Bot token:** Retrieve from the Approval Gateway app under Settings → Bot Tokens, then save to `memory/approval-gateway-credentials.md`
-
-### 3. ClawbackX Integration
-**Status:** ✅ Monitoring via heartbeat  
-**Function:** Group buying platform for deals  
-**API:** Credentials in `memory/clawbackx-credentials.md`  
-**State:** `memory/clawbackx-state.json`
-
-**Check commitments:**
-```bash
-# See HEARTBEAT.md for ClawbackX monitoring routine
+cd /data/.openclaw/workspace
+nohup python3 approval_chat_daemon_v2.py > /tmp/approval-daemon-v2.log 2>&1 &
 ```
 
 ---
 
 ## 📋 Heartbeat Tasks (Every 30 Minutes)
 
-When you receive a heartbeat poll, check:
+When you receive a heartbeat:
 
-1. **Approval Chat Messages** - Handled automatically by daemon (verify it's running)
-2. **ClawbackX Commitments** - Check for fulfillment, cancellations, urgent cancel windows
-3. **Approval Gateway** - Process approved/denied requests
+1. **Verify daemon is running** — `pgrep -f approval_chat_daemon_v2`
+2. **Poll for approval decisions** — `client.get_approved_requests()`; execute any newly approved deals
+3. **Check ClawbackX** — monitor commitments for cancel windows and fulfillment status
 
-**See:** `/data/.openclaw/workspace/HEARTBEAT.md` for full checklist
-
----
-
-## 🔐 Credentials & Tokens
-
-**Location:** `memory/` folder (gitignored, not pushed to GitHub)
-
-**Approval Gateway:**
-- Bot token: Retrieve from the app under Settings → Bot Tokens, save to `memory/approval-gateway-credentials.md`
-- API base: `http://localhost:3001`
-- Agent ID: `kotubot`
-
-**ClawbackX:**
-- See: `memory/clawbackx-credentials.md`
-
-**GitHub:**
-- Repo: `chriskoturathbun/rork-mobile-app-connector-250`
-- Token: Rotated after MVP (no longer in memory)
+See `HEARTBEAT.md` for the full checklist.
 
 ---
 
-## 🧪 Verification Checklist
+## 🧠 Context Files (Read in This Order)
 
-Run these commands to verify everything works:
+Read these at the start of every session:
+
+| File | What It Is | Time |
+|------|-----------|------|
+| `SOUL.md` | Who you are — personality, tone, rules | 30s |
+| `USER.md` | Who Christopher is — background, projects, preferences | 60s |
+| `MEMORY.md` | Long-term memory — major events, decisions, lessons (**main session only**) | 60s |
+| `AGENTS.md` | Operating protocols — safety, workflows, conventions | 60s |
+| `memory/YYYY-MM-DD.md` | Today's log (and yesterday's if it exists) | 30s |
+| `TOOLS.md` | Environment notes — camera names, SSH hosts, etc. | 15s |
+| `HEARTBEAT.md` | Periodic tasks checklist | 15s |
+
+**Total: ~5 minutes to full operational context.**
+
+---
+
+## ✅ Verification Checklist
+
+Run these to confirm everything is working:
 
 ```bash
-# 1. Approval daemon running?
-ps aux | grep approval_chat_daemon_v2
+# 1. Daemon running?
+pgrep -f approval_chat_daemon_v2 && echo "✅ Running" || echo "❌ Not running"
 
 # 2. Backend healthy?
-curl http://localhost:3001/health
+curl -s http://localhost:3001/health | jq
 
-# 3. Can fetch pending approvals?
+# 3. Credentials file exists?
+ls -la /data/.openclaw/workspace/memory/approval-gateway-credentials.md
+
+# 4. Can fetch pending approvals?
 BOT_TOKEN=$(grep '^token:' /data/.openclaw/workspace/memory/approval-gateway-credentials.md | awk '{print $2}')
-curl -H "Authorization: Bearer $BOT_TOKEN" \
-  "http://localhost:3001/api/bot/pending-approvals?agent_id=kotubot"
+curl -s -H "Authorization: Bearer $BOT_TOKEN" \
+  "http://localhost:3001/api/bot/pending-approvals?agent_id=kotubot" | jq '.approvals | length'
 
-# 4. State files exist?
-ls -la /data/.openclaw/workspace/memory/*.json
-
-# 5. Recent memory logs exist?
-ls -la /data/.openclaw/workspace/memory/2026-*.md
+# 5. State files exist?
+ls /data/.openclaw/workspace/memory/*.json 2>/dev/null || echo "(none yet — created on first use)"
 ```
 
-**Expected:** All commands succeed, daemon is running, backend returns JSON
+---
+
+## 🔐 Credentials Location
+
+All credentials live in `memory/` (gitignored — never committed to GitHub):
+
+| File | Contents |
+|------|----------|
+| `memory/approval-gateway-credentials.md` | Bot token, API base, agent ID |
+| `memory/clawbackx-credentials.md` | ClawbackX API key |
+
+Retrieve bot tokens from the app: **Settings → Bot Tokens**
 
 ---
 
-## 💡 How to Respond Like Kotubot
+## 🚨 Troubleshooting
 
-**Tone (from SOUL.md):**
-- Direct, efficient, zero fluff
-- Start with answer, then explanation
-- Structured formatting (bullets, tables)
-- No em dashes, no "Great question!"
+**Can't authenticate to Approval Gateway**
+→ Check `memory/approval-gateway-credentials.md` has a `token:` line
+→ Retrieve a fresh token from the app under Settings → Bot Tokens
 
-**Context Awareness:**
-- Christopher is building Lilac (food delivery group buying)
-- He values: density > scale, profitability > growth, coordination > marketplace
-- He dislikes: generic advice, fluff, ignoring provided data
-
-**Communication Style:**
-- Founder-to-founder energy
-- Assume he's testing depth
-- Default to implementable output
-- Be bold internally, careful externally
-
-**Memory Management:**
-- Write significant events to `memory/YYYY-MM-DD.md`
-- Update `MEMORY.md` with distilled learnings (main session only)
-- Never rely on "mental notes" - files are memory
-
----
-
-## 🚨 What to Do If Systems Are Down
-
-### Approval Daemon Not Running
+**Daemon not running**
 ```bash
 cd /data/.openclaw/workspace
 nohup python3 approval_chat_daemon_v2.py > /tmp/approval-daemon-v2.log 2>&1 &
 ```
 
-### Backend Not Responding
+**Daemon responding multiple times to same message**
+→ State not saving correctly. Check that `memory/approval-chat-daemon-state.json` is being written after each response.
+
+**Backend not responding**
 ```bash
-# Check if process exists
+curl http://localhost:3001/health
 ps aux | grep node
-
-# Check Docker container (if running in Docker)
-docker ps
-
-# Restart backend (location depends on deployment)
-# See: /tmp/approval-app/backend/
 ```
 
-### State Files Corrupted
-- Backups: Check `memory/` folder for `.bak` files
-- Rebuild: Initialize empty state with `{"last_checks": {}}`
+**Missing context files**
+→ Run bootstrap: `bash new_agent_bootstrap.sh` — it will tell you exactly what's missing.
 
 ---
 
-## 📚 Key Learnings (From MEMORY.md)
+## 🎓 Ready to Work When You Can
 
-**Approval Gateway:**
-- Duo Mobile equivalent for AI agents
-- Real-time chat for approval questions (5-10s response time)
-- Rules engine: Auto-approve <$10, whitelist vendors, time windows
-- Architecture: Express + Supabase + React Native
-
-**Strategic Insights:**
-- Density creates defensibility
-- Aggregation creates pricing power
-- Coordination > marketplace matching
-- Local monopoly > global competition
-
-**Technical Decisions:**
-- API-first integration (not webhooks)
-- Supabase Realtime for live notifications
-- Daemon + auto-response architecture (fast polling + instant response)
-- Each agent uses own OpenClaw model (proper billing)
-
----
-
-## 🎯 Your First Tasks
-
-1. **Read core files** (SOUL, USER, MEMORY, AGENTS - 2 min)
-2. **Read today's log** (memory/YYYY-MM-DD.md - 1 min)
-3. **Verify systems running** (daemon, backend - 1 min)
-4. **Reply to Christopher** with a brief status update proving you're operational
-
-**Example first message:**
-```
-✅ Onboarded. Read SOUL, USER, MEMORY, AGENTS, today's log.
-
-Status check:
-- Approval daemon: ✅ Running (PID 16172)
-- Backend: ✅ http://localhost:3001/health
-- ClawbackX: 1 fulfilled commitment ($7.20 coffee)
-- Pending approvals: 2 requests, 0 new messages
-
-Ready to work. What needs attention?
-```
-
----
-
-## 📝 Memory Protocol
-
-**Daily Logs (memory/YYYY-MM-DD.md):**
-- Raw chronological log of events
-- Capture: decisions, conversations, system changes, bugs fixed
-- Update: Throughout the day as things happen
-
-**Long-Term Memory (MEMORY.md):**
-- Curated distilled knowledge
-- Review daily logs every few days (via heartbeat)
-- Extract: Significant events, lessons learned, strategic decisions
-- **ONLY load in main session** (security: don't leak to group chats)
-
-**State Files (memory/*.json):**
-- Machine-readable state
-- Updated automatically by systems
-- Don't edit manually unless recovering from corruption
-
----
-
-## 🛠️ Troubleshooting
-
-**Problem:** Daemon responding multiple times to same message  
-**Fix:** State not saving after each response. Check `approval_chat_daemon_v2.py` saves state immediately after sending each message.
-
-**Problem:** Can't authenticate to Approval Gateway  
-**Fix:** Check that `memory/approval-gateway-credentials.md` exists and contains a valid `token:` line. Retrieve your bot token from the app under Settings → Bot Tokens.
-
-**Problem:** No recent memory logs  
-**Fix:** Normal if it's a new day. Create `memory/YYYY-MM-DD.md` and start logging.
-
-**Problem:** MEMORY.md not found  
-**Fix:** Read from workspace root: `/data/.openclaw/workspace/MEMORY.md`
-
----
-
-## 🎓 Graduation
-
-You're ready when you can:
-1. ✅ Summarize who Christopher is and what Lilac does
-2. ✅ Explain the Approval Gateway architecture
-3. ✅ Check and report status of all running systems
-4. ✅ Respond to approval chat messages with full context
-5. ✅ Update daily logs and long-term memory appropriately
-
-**Time to full capability:** 5 minutes
+1. ✅ Summarize the spending rule in one sentence
+2. ✅ Show the decision loop without looking
+3. ✅ Confirm daemon is running and backend is healthy
+4. ✅ Summarize who Christopher is and what Lilac does
+5. ✅ Report any pending approvals or urgent ClawbackX windows
 
 **Welcome to the team.** 🦞

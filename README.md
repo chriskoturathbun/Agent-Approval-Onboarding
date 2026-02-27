@@ -4,6 +4,8 @@
 
 This repository contains the complete onboarding system for Kotubot and similar AI agents working with the Approval Gateway platform.
 
+> ⚠️ **Core Rule:** Every purchase, financial commitment, or spending decision must be submitted to the Approval Gateway and approved before the agent acts. The agent reads decisions from the database — it never spends autonomously.
+
 ---
 
 ## 🚀 Quick Start (New Agent)
@@ -37,8 +39,16 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 - Memory management protocols
 - Response style guide
 
-**new_agent_bootstrap.sh** (3.5 KB)
+**approval_chat_daemon_v2.py**
+- Background daemon (run once at startup)
+- Polls pending approvals every 5 seconds
+- Detects new user messages in approval chat
+- Generates context-aware responses (hooks into agent model)
+- Saves state after each response to prevent duplicates
+
+**new_agent_bootstrap.sh**
 - Automated health check script
+- Installs daemon to workspace if not present
 - Verifies all core files exist
 - Checks running systems (daemon, backend)
 - Tests API connectivity
@@ -78,18 +88,30 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 
 ## 🏗️ Architecture Overview
 
+### The Decision Loop
+
+Every financial action goes through the same flow:
+
+```
+Agent wants to spend
+  → POST /api/bot/approval-requests      (INSERT to database)
+  → pending: wait and poll on heartbeat
+  → GET /api/bot/pending-approvals       (READ decisions from database)
+  → approved: act  |  denied/expired: skip
+```
+
 ### Active Systems
 
-**Approval Chat Auto-Responder**
+**Approval Chat Auto-Responder** (`approval_chat_daemon_v2.py`)
 - Polls approval requests every 5 seconds
-- Responds automatically with full context (MEMORY.md, USER.md, SOUL.md)
+- Responds to user questions using full agent context (SOUL.md, USER.md, MEMORY.md)
 - Response time: 5-10 seconds
-- Script: `approval_chat_daemon_v2.py`
+- Pluggable `generate_response()` hook for any agent model (OpenClaw, Claude, etc.)
 
 **Approval Gateway Backend**
 - REST API for approval requests, decisions, chat messages
 - Running on: http://localhost:3001
-- Authentication: Bot token-based
+- Authentication: Bot token (retrieved from app: Settings → Bot Tokens)
 
 **ClawbackX Integration**
 - Group buying platform monitoring
@@ -98,8 +120,7 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 
 **Heartbeat System**
 - Runs every 30 minutes
-- Checks approval chats, ClawbackX, approval gateway
-- Proactive monitoring and alerts
+- Polls for new approval decisions, checks ClawbackX, verifies daemon health
 
 ---
 
@@ -148,9 +169,9 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 
 **Setup for new agent:**
 1. Clone this repo
-2. Copy credentials to `memory/` folder (gitignored)
-3. Create `USER.md`, `SOUL.md`, `MEMORY.md` locally
-4. Run bootstrap script
+2. Run `bash new_agent_bootstrap.sh` — auto-installs daemon, checks all systems
+3. Get bot token from app (Settings → Bot Tokens), save to `memory/approval-gateway-credentials.md`
+4. Create `USER.md`, `SOUL.md`, `MEMORY.md` locally from the templates
 
 ---
 
