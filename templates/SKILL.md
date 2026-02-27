@@ -106,7 +106,7 @@ Handles all agent spending decisions. Every purchase request is submitted here a
 /data/.openclaw/workspace/memory/approval-gateway-credentials.md
 ---
 token: appr_<your_token>
-api_base: http://localhost:3001
+api_base: https://approvals.clawbackx.com
 agent_id: <your_agent_id>
 ```
 
