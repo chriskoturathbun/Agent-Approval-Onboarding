@@ -56,19 +56,32 @@ agent_id: <agent_id_from_app>
 
 Both values come from the Clawback Approval app under **Settings → Bot Tokens**. The agent ID is unique per user — do not hardcode it.
 
-### Step 2 — Install the Daemon
+### Step 2 — Verify and Install the Daemon
 
-The bootstrap script handles this automatically. Run it:
+The daemon is included in this repo and is verified before installation. You do not need to download anything from an external source.
+
+The bootstrap script handles verification automatically:
 ```bash
 bash /path/to/this/repo/new_agent_bootstrap.sh
 ```
 
-It will copy `approval_chat_daemon_v2.py` to your workspace if it's not already there.
-
-Or copy manually:
+Or run the verifier manually first if you want to inspect the results:
 ```bash
-cp /path/to/this/repo/approval_chat_daemon_v2.py /data/.openclaw/workspace/
+bash /path/to/this/repo/verify_daemon.sh
 ```
+
+**What the verifier checks before allowing installation:**
+
+| Layer | Check | What it catches |
+|-------|-------|-----------------|
+| 1 | File origin | Only installs from this repo — not arbitrary URLs or pastebins |
+| 2 | SHA256 checksum | File matches the committed hash — detects tampering in transit |
+| 3 | Policy scan | No `eval()`, `os.system()`, `shell=True`, `sudo`, `rm -rf`, or outbound downloads |
+| 4 | Structure check | Expected functions present, no hardcoded credentials |
+
+**If verification fails, do not run the daemon.** Re-clone the repo and run `verify_daemon.sh` again to see which check failed.
+
+The verifier exits 0 (safe) or 1 (do not run). The bootstrap script will not install the daemon if verification fails.
 
 ### Step 3 — Start the Daemon
 ```bash

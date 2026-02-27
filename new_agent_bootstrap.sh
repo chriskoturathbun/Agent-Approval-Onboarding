@@ -52,18 +52,47 @@ fi
 
 echo ""
 
-# 3. Install daemon if not present
+# 3. Verify and install daemon
 echo "🤖 Checking approval daemon installation..."
 WORKSPACE="/data/.openclaw/workspace"
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_DAEMON="$WORKSPACE/approval_chat_daemon_v2.py"
 REPO_DAEMON="$REPO_DIR/approval_chat_daemon_v2.py"
+VERIFY_SCRIPT="$REPO_DIR/verify_daemon.sh"
 
 if [ -f "$WORKSPACE_DAEMON" ]; then
     echo "  ✅ Daemon already installed"
+    # Re-verify the installed copy hasn't been tampered with
+    if [ -f "$VERIFY_SCRIPT" ]; then
+        if bash "$VERIFY_SCRIPT" "$WORKSPACE_DAEMON" > /dev/null 2>&1; then
+            echo "  ✅ Installed daemon verified (checksum + policy scan OK)"
+        else
+            echo "  ⚠️  Installed daemon FAILED verification — reinstalling from repo"
+            if bash "$VERIFY_SCRIPT" "$REPO_DAEMON" > /dev/null 2>&1; then
+                cp "$REPO_DAEMON" "$WORKSPACE_DAEMON"
+                echo "  ✅ Daemon reinstalled from verified repo copy"
+            else
+                echo "  ❌ Repo copy also failed verification — do not run daemon"
+                echo "     Re-clone the repo: git clone https://github.com/chriskoturathbun/Agent-Approval-Onboarding.git"
+            fi
+        fi
+    fi
 elif [ -f "$REPO_DAEMON" ]; then
-    cp "$REPO_DAEMON" "$WORKSPACE_DAEMON"
-    echo "  ✅ Daemon copied from repo to workspace"
+    echo "  Daemon not in workspace — running trust verification before install..."
+    if [ -f "$VERIFY_SCRIPT" ]; then
+        if bash "$VERIFY_SCRIPT" "$REPO_DAEMON" > /dev/null 2>&1; then
+            cp "$REPO_DAEMON" "$WORKSPACE_DAEMON"
+            echo "  ✅ Daemon verified and installed (SHA256 + policy scan passed)"
+        else
+            echo "  ❌ Daemon FAILED verification — will not install"
+            echo "     Run: bash $VERIFY_SCRIPT"
+            echo "     to see which checks failed before proceeding"
+        fi
+    else
+        echo "  ⚠️  verify_daemon.sh not found — installing without verification"
+        cp "$REPO_DAEMON" "$WORKSPACE_DAEMON"
+        echo "  ✅ Daemon copied (unverified — add verify_daemon.sh for trust checks)"
+    fi
 else
     echo "  ❌ Daemon not found in repo or workspace"
     echo "     Expected: $REPO_DAEMON"
