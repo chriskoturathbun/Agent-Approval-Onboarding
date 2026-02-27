@@ -110,7 +110,7 @@ Agent wants to spend
 
 **Approval Gateway Backend**
 - REST API for approval requests, decisions, chat messages
-- Running on: http://localhost:3001
+- Running on: https://approvals.clawbackx.com
 - Authentication: Bot token (retrieved from app: Settings → Bot Tokens)
 
 **ClawbackX Integration**
