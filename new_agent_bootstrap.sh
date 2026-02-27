@@ -113,11 +113,11 @@ else
 fi
 
 # Backend health
-if curl -s http://localhost:3001/health > /dev/null 2>&1; then
-    echo "  ✅ Backend healthy (http://localhost:3001)"
+if curl -s https://approvals.clawbackx.com/health > /dev/null 2>&1; then
+    echo "  ✅ Backend healthy (https://approvals.clawbackx.com)"
 else
     echo "  ❌ Backend not responding"
-    echo "     Check: curl http://localhost:3001/health"
+    echo "     Check: curl https://approvals.clawbackx.com/health"
 fi
 
 echo ""
@@ -160,7 +160,7 @@ if [ ! -f "$CREDS_FILE" ]; then
     echo ""
     echo "  Then create the credentials file:"
     echo "  token: appr_<bot_token_from_app>"
-    echo "  api_base: http://localhost:3001"
+    echo "  api_base: https://approvals.clawbackx.com"
     echo "  agent_id: <agent_id_from_app>"
     echo ""
     echo "  ⚠️  No purchases can be processed until this is done."
@@ -192,7 +192,7 @@ echo "  ✅ Agent ID: $AGENT_ID"
 
 # Live API test
 RESPONSE=$(curl -s -H "Authorization: Bearer $BOT_TOKEN" \
-    "http://localhost:3001/api/bot/pending-approvals?agent_id=${AGENT_ID}" 2>&1)
+    "https://approvals.clawbackx.com/api/bot/pending-approvals?agent_id=${AGENT_ID}" 2>&1)
 
 if echo "$RESPONSE" | jq -e '.approvals' > /dev/null 2>&1; then
     APPROVAL_COUNT=$(echo "$RESPONSE" | jq '.approvals | length')
