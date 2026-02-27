@@ -50,16 +50,23 @@ cd /data/.openclaw/workspace && nohup python3 approval_chat_daemon_v2.py > /tmp/
 
 **Check approvals:**
 ```bash
-# Load your bot token from credentials file
-BOT_TOKEN=$(grep '^token:' /data/.openclaw/workspace/memory/approval-gateway-credentials.md | awk '{print $2}')
+# Load credentials (always use these variables, never hardcode)
+BOT_TOKEN=$(grep '^token:'    /data/.openclaw/workspace/memory/approval-gateway-credentials.md | awk '{print $2}')
+AGENT_ID=$(grep '^agent_id:' /data/.openclaw/workspace/memory/approval-gateway-credentials.md | awk '{print $2}')
 
 # Get pending approvals
 curl -H "Authorization: Bearer $BOT_TOKEN" \
-  "http://localhost:3001/api/bot/pending-approvals?agent_id=kotubot" | jq
+  "http://localhost:3001/api/bot/pending-approvals?agent_id=$AGENT_ID" | jq
 
 # Get chat messages for an approval
 curl -H "Authorization: Bearer $BOT_TOKEN" \
   "http://localhost:3001/api/chat-messages/REQUEST_ID" | jq
+```
+
+**Verify daemon before running:**
+```bash
+bash /data/.openclaw/workspace/verify_daemon.sh
+# Must exit 0 before daemon is trusted to run
 ```
 
 ---
@@ -68,8 +75,9 @@ curl -H "Authorization: Bearer $BOT_TOKEN" \
 
 **Approval Gateway:**
 - API: `http://localhost:3001`
-- Bot token: Retrieve from the app under Settings → Bot Tokens, save to `memory/approval-gateway-credentials.md`
-- Agent ID: `kotubot`
+- Bot token + Agent ID: Retrieve from the Clawback Approval app → **Settings → Bot Tokens**
+- Save both to: `memory/approval-gateway-credentials.md`
+- ⚠️ Agent ID is user-specific — never hardcode it
 
 **ClawbackX:**
 - See: `memory/clawbackx-credentials.md`
@@ -102,11 +110,17 @@ curl -H "Authorization: Bearer $BOT_TOKEN" \
 
 ## 🚨 Common Issues
 
+**Approval layer inactive (no credentials file):**
+→ Ask user to download Clawback Approval app → Settings → Bot Tokens → copy token + agent ID
+
+**Daemon not trusted / verify fails:**
+→ `bash verify_daemon.sh` to see which check failed; re-clone repo if checksum mismatch
+
 **Daemon responding multiple times:**
 → Check state saves after each response, not at end
 
 **API authentication fails:**
-→ Check `memory/approval-gateway-credentials.md` has a valid `token:` line. Retrieve token from the app under Settings → Bot Tokens.
+→ Check `memory/approval-gateway-credentials.md` has valid `token:` and `agent_id:` lines
 
 **Backend not responding:**
 → `curl http://localhost:3001/health`

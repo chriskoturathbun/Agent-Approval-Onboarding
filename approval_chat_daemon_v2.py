@@ -183,7 +183,7 @@ def generate_response(
     vendor = approval_request.get('vendor', 'Unknown vendor')
     amount = approval_request.get('spending_amount_cents', 0) / 100
     reason = approval_request.get('reason', '')
-    user_msg = new_message.get('content', '')
+    user_msg = new_message.get('message', '')  # API returns 'message' field
 
     # Default template response — replace this with your model call
     return (
@@ -265,9 +265,9 @@ def poll_once(creds: Dict, state: Dict) -> Dict:
                 f"{api_base}/api/chat-messages",
                 headers,
                 {
-                    'request_id': request_id,
+                    'approval_request_id': request_id,  # API field name
                     'sender': 'agent',
-                    'content': response_text
+                    'message': response_text             # API field name
                 }
             )
 
