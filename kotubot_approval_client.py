@@ -63,6 +63,10 @@ class ApprovalGatewayClient:
             payload['deal_slug'] = deal_slug
         
         # Use bot API endpoint (no user_id needed - token identifies user)
+        # BACKEND NOTE: The server should validate that payload['agent_id']
+        # matches the agent_id registered for this bot token in the database.
+        # This prevents a leaked token from being used to submit requests
+        # under a different agent_id. See SECURITY.md for full details.
         url = f'{self.api_base}/api/bot/approval-requests'
         
         try:
