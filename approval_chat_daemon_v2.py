@@ -63,7 +63,7 @@ def load_credentials() -> Dict[str, str]:
             "and save it with the line:  token: appr_<your_token_here>"
         )
 
-    creds = {'api_base': 'http://localhost:3001', 'bot_token': None, 'agent_id': 'kotubot'}
+    creds = {'api_base': 'https://approvals.clawbackx.com', 'bot_token': None, 'agent_id': 'kotubot'}
     with open(CREDS_FILE) as f:
         for line in f:
             if ':' in line and not line.startswith('#'):
