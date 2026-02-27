@@ -155,7 +155,7 @@ def load_credentials() -> Dict[str, str]:
         )
 
     creds = {
-        'api_base': 'http://localhost:3001',
+        'api_base': 'https://approvals.clawbackx.com',
         'bot_token': None,
         'agent_id': 'kotubot',
     }
