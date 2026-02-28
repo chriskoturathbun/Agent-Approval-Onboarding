@@ -85,13 +85,19 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 
 ### Multi-Agent Daemon System (NEW)
 
-**approval_chat_daemon_universal.py** (18.9 KB) - **RECOMMENDED**
+**approval_chat_daemon_universal_v2.py** (21.3 KB) - **✨ RECOMMENDED (v2)**
+- **Production-hardened** with retry logic and proper logging
 - **Universal LLM support** (Anthropic, OpenAI, local models, etc.)
 - Auto-detects model from OpenClaw configuration
-- Production-ready multi-agent support
-- Workspace-based configuration
-- Isolated state per agent
-- See [UNIVERSAL_DAEMON_GUIDE.md](./UNIVERSAL_DAEMON_GUIDE.md) for full documentation
+- Exponential backoff on API failures (3 retries)
+- Graceful error handling and recovery
+- SHA256 checksum for verification
+- See [UNIVERSAL_DAEMON_GUIDE.md](./UNIVERSAL_DAEMON_GUIDE.md) and [DAEMON_V2_IMPROVEMENTS.md](./DAEMON_V2_IMPROVEMENTS.md)
+
+**approval_chat_daemon_universal.py** (18.9 KB) - v1
+- Original universal daemon (use v2 instead)
+- Basic functionality without retry logic
+- See [UNIVERSAL_DAEMON_GUIDE.md](./UNIVERSAL_DAEMON_GUIDE.md)
 
 **approval_chat_daemon_multi_agent.py** (15.5 KB) - Anthropic-only
 - Claude models only
@@ -103,16 +109,19 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 - `stop_approval_daemons.sh` - Stop all running daemons
 - `check_approval_daemons.sh` - Check daemon status
 
-**Quick Start (Universal Daemon):**
+**Quick Start (Universal Daemon v2):**
 ```bash
 # Auto-detects model from OpenClaw config
-python3 approval_chat_daemon_universal.py --workspace /data/.openclaw/workspace
+python3 approval_chat_daemon_universal_v2.py --workspace /data/.openclaw/workspace
 
 # Or specify model explicitly
-python3 approval_chat_daemon_universal.py --workspace /data/.openclaw/workspace --model gpt-4
+python3 approval_chat_daemon_universal_v2.py --workspace /data/.openclaw/workspace --model gpt-4
 
-# Check what model will be used
-python3 approval_chat_daemon_universal.py --workspace /data/.openclaw/workspace --once
+# Test run (single poll cycle)
+python3 approval_chat_daemon_universal_v2.py --workspace /data/.openclaw/workspace --once
+
+# Verify checksum before running
+shasum -a 256 -c approval_chat_daemon_universal_v2.sha256
 ```
 
 See [QUICK_START_DAEMON.md](./QUICK_START_DAEMON.md) for detailed setup.
@@ -152,13 +161,16 @@ Agent wants to spend
 ### Active Systems
 
 **Approval Chat Auto-Responder**
-- **Universal (RECOMMENDED):** `approval_chat_daemon_universal.py`
+- **Universal v2 (✨ RECOMMENDED):** `approval_chat_daemon_universal_v2.py`
+  - **Production-hardened** with retry logic and proper logging
   - **Works with any LLM** (Anthropic, OpenAI, local models)
   - Auto-detects model from OpenClaw config
+  - Exponential backoff on failures (3 retries, 0s/1s/2s)
+  - Graceful error handling and recovery
   - Multi-agent support with isolated state
   - Response time: 5-10 seconds
-  - Production-tested and documented
-  - See [UNIVERSAL_DAEMON_GUIDE.md](./UNIVERSAL_DAEMON_GUIDE.md)
+  - SHA256 checksum included
+  - See [DAEMON_V2_IMPROVEMENTS.md](./DAEMON_V2_IMPROVEMENTS.md)
   
 - **Anthropic-Only:** `approval_chat_daemon_multi_agent.py`
   - Claude models only (Haiku, Sonnet, Opus)
@@ -288,7 +300,8 @@ This onboarding system is open-source. Improvements welcome!
 **Bootstrap script:** [new_agent_bootstrap.sh](./new_agent_bootstrap.sh)
 
 **Multi-Agent Daemons:**
-- [UNIVERSAL_DAEMON_GUIDE.md](./UNIVERSAL_DAEMON_GUIDE.md) - **Universal daemon guide (RECOMMENDED)**
+- [DAEMON_V2_IMPROVEMENTS.md](./DAEMON_V2_IMPROVEMENTS.md) - **✨ v2 improvements & changelog**
+- [UNIVERSAL_DAEMON_GUIDE.md](./UNIVERSAL_DAEMON_GUIDE.md) - Universal daemon guide
 - [APPROVAL_DAEMON_MULTI_AGENT.md](./APPROVAL_DAEMON_MULTI_AGENT.md) - Anthropic-only daemon
 - [QUICK_START_DAEMON.md](./QUICK_START_DAEMON.md) - Quick start guide
 - [DAEMON_BUILD_SUMMARY.md](./DAEMON_BUILD_SUMMARY.md) - Technical summary
