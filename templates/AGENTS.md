@@ -258,9 +258,9 @@ This is a starting point. Add your own conventions, style, and rules as you figu
 
 When a user has questions about a pending approval request, they message you directly through the Clawback Approval app. You must respond as yourself, with your full context and reasoning.
 
-### Incoming: notification via notify_url
+### Incoming: notification via notify_url (relay-only mode)
 
-The daemon forwards user messages to your `notify_url` as a signed POST:
+When using the relay daemon (`approval_chat_daemon_v2.py`), user messages are forwarded to your `notify_url` as a signed POST:
 
 ```
 POST <your notify_url>
@@ -314,7 +314,7 @@ requests.post(
 
 Use `full_request` for complete context when answering. Your response should reflect your actual reasoning — not a template.
 
-### No notify_url? Check the inbox
+### No notify_url? Check the inbox (relay-only mode)
 
 If no `notify_url` is configured, the daemon writes questions to:
 ```
@@ -353,7 +353,7 @@ requests.post(
 )
 ```
 
-### Register your notify_url
+### Register your notify_url (relay-only mode)
 
 When creating your bot token, include your endpoint:
 
@@ -363,4 +363,6 @@ curl -X POST https://approvals.clawbackx.com/api/bot-tokens \
   -d '{"user_id":"<uid>","agent_id":"kotubot","agent_name":"Kotubot","notify_url":"http://localhost:8080/api/sessions/kotubot/notify","capabilities":{"chat":true,"auto_approve":false}}'
 ```
 
-Or add `notify_url:` to your credentials file and let the daemon handle it.
+Or add `notify_url:` to your credentials file and let the relay daemon handle it.
+
+If you're running `approval_chat_daemon_universal_v2.py`, do not set up `notify_url` for chat replies; the daemon answers directly with local context.

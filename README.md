@@ -40,11 +40,10 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 - Response style guide
 
 **approval_chat_daemon_v2.py** (Legacy single-agent)
-- Background daemon (run once at startup)
-- Polls pending approvals every 5 seconds
-- Detects new user messages in approval chat
-- Generates context-aware responses (hooks into agent model)
-- Saves state after each response to prevent duplicates
+- Relay daemon (optional integration mode)
+- Forwards user chat messages to `notify_url` or inbox fallback
+- Does not generate model responses itself
+- Use only when a separate live agent endpoint should answer
 
 **approval_chat_daemon_universal.py** (✨ **RECOMMENDED** - Universal LLM support)
 - **Works with any LLM provider** (Anthropic, OpenAI, local models, etc.)
@@ -178,8 +177,8 @@ Agent wants to spend
   - Use if you only need Claude
   
 - **Legacy Single-Agent:** `approval_chat_daemon_v2.py`
-  - Original implementation
-  - Not recommended for new deployments
+  - Relay-only implementation (`notify_url` / inbox flow)
+  - Keep as optional fallback, not primary deployment path
 
 **Approval Gateway Backend**
 - REST API for approval requests, decisions, chat messages

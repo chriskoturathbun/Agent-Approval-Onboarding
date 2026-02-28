@@ -32,6 +32,9 @@ AGENTS=(
 echo "🚀 Starting Approval Daemons"
 echo "========================================"
 echo "Daemon: $DAEMON_BASENAME"
+if [ "${ALLOW_MIXED_DAEMONS:-0}" = "1" ]; then
+    echo "Mixed mode: enabled (ALLOW_MIXED_DAEMONS=1)"
+fi
 echo ""
 
 STARTED_COUNT=0
@@ -62,6 +65,16 @@ for AGENT_CONFIG in "${AGENTS[@]}"; do
         PID=$(pgrep -f "$DAEMON_BASENAME.*$WORKSPACE")
         echo "⚠️  $AGENT_NAME daemon already running (PID $PID)"
         continue
+    fi
+
+    # Guard against running relay and model-answering daemons together.
+    if [ "$DAEMON_BASENAME" != "approval_chat_daemon_v2.py" ] && [ "${ALLOW_MIXED_DAEMONS:-0}" != "1" ]; then
+        if pgrep -f "approval_chat_daemon_v2.py.*$WORKSPACE" > /dev/null; then
+            RELAY_PID=$(pgrep -f "approval_chat_daemon_v2.py.*$WORKSPACE")
+            echo "⚠️  Skipping $AGENT_NAME: relay daemon running (PID $RELAY_PID)"
+            echo "   Stop relay first, or set ALLOW_MIXED_DAEMONS=1 to override."
+            continue
+        fi
     fi
     
     # Start daemon
