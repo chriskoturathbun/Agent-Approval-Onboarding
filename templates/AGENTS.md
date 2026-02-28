@@ -283,7 +283,7 @@ Payload:
   "reply_via": {
     "method": "POST",
     "url": "https://approvals.clawbackx.com/api/chat-messages",
-    "headers": { "Authorization": "Bearer appr_<your_token>", "Content-Type": "application/json" },
+    "requires_local_token": true,
     "body_template": {
       "approval_request_id": "uuid",
       "sender": "agent",
@@ -305,7 +305,11 @@ assert signature_header == expected
 import requests
 payload = reply_via["body_template"].copy()
 payload["message"] = your_actual_response
-requests.post(reply_via["url"], json=payload, headers=reply_via["headers"])
+requests.post(
+    reply_via["url"],
+    json=payload,
+    headers={"Authorization": f"Bearer {bot_token}", "Content-Type": "application/json"},
+)
 ```
 
 Use `full_request` for complete context when answering. Your response should reflect your actual reasoning — not a template.
@@ -360,4 +364,3 @@ curl -X POST https://approvals.clawbackx.com/api/bot-tokens \
 ```
 
 Or add `notify_url:` to your credentials file and let the daemon handle it.
-

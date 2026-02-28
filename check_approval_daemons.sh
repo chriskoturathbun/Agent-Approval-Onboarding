@@ -1,12 +1,18 @@
 #!/bin/bash
 # Check status of multi-agent approval daemons
 
+DAEMON_PATTERN="${DAEMON_PATTERN:-approval_chat_daemon_.*\\.py}"
+
+extract_workspace() {
+    echo "$1" | awk '{for (i = 1; i <= NF; i++) if ($i == "--workspace") {print $(i+1); exit}}'
+}
+
 echo "📊 Multi-Agent Approval Daemon Status"
 echo "========================================"
 echo ""
 
 # Check if any daemons are running
-PIDS=$(pgrep -f "approval_chat_daemon_multi_agent.py" || true)
+PIDS=$(pgrep -f "$DAEMON_PATTERN" || true)
 
 if [ -z "$PIDS" ]; then
     echo "❌ No approval daemons running"
@@ -19,11 +25,12 @@ echo "✅ Running daemon(s):"
 echo ""
 
 # Show process details
-ps aux | grep "approval_chat_daemon_multi_agent.py" | grep -v grep | while read -r line; do
+ps aux | grep -E "$DAEMON_PATTERN" | grep -v grep | while read -r line; do
     PID=$(echo "$line" | awk '{print $2}')
     
     # Extract workspace from command line
-    WORKSPACE=$(echo "$line" | grep -oP '(?<=--workspace )[^ ]+' || echo "unknown")
+    WORKSPACE=$(extract_workspace "$line")
+    [ -z "$WORKSPACE" ] && WORKSPACE="unknown"
     
     # Find agent name from workspace
     if [[ "$WORKSPACE" == *"/workspace" ]]; then
@@ -56,7 +63,8 @@ echo "========================================"
 echo ""
 echo "View logs:"
 for PID in $PIDS; do
-    WORKSPACE=$(ps -p "$PID" -o args= | grep -oP '(?<=--workspace )[^ ]+' || echo "unknown")
+    WORKSPACE=$(extract_workspace "$(ps -p "$PID" -o args=)")
+    [ -z "$WORKSPACE" ] && WORKSPACE="unknown"
     if [[ "$WORKSPACE" == *"/workspace" ]]; then
         AGENT_NAME=$(basename "$(dirname "$WORKSPACE")")
     else

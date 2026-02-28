@@ -105,8 +105,8 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 - See [APPROVAL_DAEMON_MULTI_AGENT.md](./APPROVAL_DAEMON_MULTI_AGENT.md)
 
 **Launcher Scripts:**
-- `start_approval_daemons.sh` - Start all configured agent daemons
-- `stop_approval_daemons.sh` - Stop all running daemons
+- `start_approval_daemons.sh` - Start all configured agent daemons (defaults to universal v2)
+- `stop_approval_daemons.sh` - Stop running approval daemons
 - `check_approval_daemons.sh` - Check daemon status
 
 **Quick Start (Universal Daemon v2):**

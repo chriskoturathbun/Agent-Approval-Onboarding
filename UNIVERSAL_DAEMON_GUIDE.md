@@ -170,7 +170,7 @@ python3 approval_chat_daemon_universal.py \
 ```
 
 Automatically:
-- Reads credentials from `{workspace}/memory/approval-gateway-credentials-simple.md`
+- Reads credentials from `{workspace}/memory/approval-gateway-credentials.md` (falls back to `...-credentials-simple.md`)
 - Detects model from OpenClaw config
 - Uses appropriate API key from environment
 

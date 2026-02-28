@@ -1,11 +1,12 @@
 #!/bin/bash
 # Multi-Agent Approval Daemon Launcher
-# Start approval chat daemons for multiple agents
+# Start approval chat daemons for multiple agents (defaults to universal v2)
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DAEMON_SCRIPT="$SCRIPT_DIR/approval_chat_daemon_multi_agent.py"
+DAEMON_SCRIPT="${DAEMON_SCRIPT:-$SCRIPT_DIR/approval_chat_daemon_universal_v2.py}"
+DAEMON_BASENAME="$(basename "$DAEMON_SCRIPT")"
 
 # Check if daemon script exists
 if [ ! -f "$DAEMON_SCRIPT" ]; then
@@ -19,19 +20,6 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# Check if anthropic package is installed
-if ! python3 -c "import anthropic" 2>/dev/null; then
-    echo "ERROR: anthropic package not installed"
-    echo "Install with: pip install anthropic"
-    exit 1
-fi
-
-# Check if ANTHROPIC_API_KEY is set
-if [ -z "$ANTHROPIC_API_KEY" ]; then
-    echo "ERROR: ANTHROPIC_API_KEY environment variable not set"
-    exit 1
-fi
-
 # Agent configurations
 # Format: "agent_name:workspace_path"
 AGENTS=(
@@ -41,8 +29,9 @@ AGENTS=(
     # "finance-bot:/data/finance-bot/workspace"
 )
 
-echo "🚀 Starting Multi-Agent Approval Daemons"
+echo "🚀 Starting Approval Daemons"
 echo "========================================"
+echo "Daemon: $DAEMON_BASENAME"
 echo ""
 
 STARTED_COUNT=0
@@ -61,13 +50,16 @@ for AGENT_CONFIG in "${AGENTS[@]}"; do
     # Check if credentials file exists
     CREDS_FILE="$WORKSPACE/memory/approval-gateway-credentials.md"
     if [ ! -f "$CREDS_FILE" ]; then
-        echo "⚠️  Skipping $AGENT_NAME: credentials not found: $CREDS_FILE"
+        CREDS_FILE="$WORKSPACE/memory/approval-gateway-credentials-simple.md"
+    fi
+    if [ ! -f "$CREDS_FILE" ]; then
+        echo "⚠️  Skipping $AGENT_NAME: credentials not found in memory/"
         continue
     fi
     
     # Check if daemon is already running
-    if pgrep -f "approval_chat_daemon_multi_agent.py.*$WORKSPACE" > /dev/null; then
-        PID=$(pgrep -f "approval_chat_daemon_multi_agent.py.*$WORKSPACE")
+    if pgrep -f "$DAEMON_BASENAME.*$WORKSPACE" > /dev/null; then
+        PID=$(pgrep -f "$DAEMON_BASENAME.*$WORKSPACE")
         echo "⚠️  $AGENT_NAME daemon already running (PID $PID)"
         continue
     fi
@@ -81,6 +73,7 @@ for AGENT_CONFIG in "${AGENTS[@]}"; do
     
     nohup python3 "$DAEMON_SCRIPT" \
         --workspace "$WORKSPACE" \
+        --credentials "$CREDS_FILE" \
         > "$LOG_FILE" 2>&1 &
     
     DAEMON_PID=$!
@@ -103,5 +96,5 @@ for AGENT_CONFIG in "${AGENTS[@]}"; do
 done
 echo ""
 echo "Stop all daemons:"
-echo "  pkill -f approval_chat_daemon_multi_agent"
+echo "  DAEMON_PATTERN=$DAEMON_BASENAME bash stop_approval_daemons.sh"
 echo ""

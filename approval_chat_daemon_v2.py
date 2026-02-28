@@ -158,7 +158,7 @@ def api_post(url: str, headers: Dict, payload: Dict) -> Optional[Dict]:
 # Notification helpers
 # ─────────────────────────────────────────────
 
-def build_notification(approval_request: Dict, chat_message: Dict, bot_token: str) -> Dict:
+def build_notification(approval_request: Dict, chat_message: Dict) -> Dict:
     """Build the structured notification payload for the agent."""
     return {
         'type':        'approval_chat_question',
@@ -173,10 +173,7 @@ def build_notification(approval_request: Dict, chat_message: Dict, bot_token: st
         'reply_via': {
             'method': 'POST',
             'url':    'https://approvals.clawbackx.com/api/chat-messages',
-            'headers': {
-                'Authorization': f'Bearer {bot_token}',
-                'Content-Type':  'application/json',
-            },
+            'requires_local_token': True,
             'body_template': {
                 'approval_request_id': approval_request['id'],
                 'sender':  'agent',
@@ -199,7 +196,7 @@ def send_notification(notify_url: str, bot_token: str,
     Retries 3 times with exponential backoff (0s, 1s, 2s).
     Returns True on success.
     """
-    payload = build_notification(approval_request, chat_message, bot_token)
+    payload = build_notification(approval_request, chat_message)
     body    = json.dumps(payload).encode('utf-8')
     sig     = sign_payload(body, bot_token)
 
@@ -227,7 +224,7 @@ def send_notification(notify_url: str, bot_token: str,
     return False
 
 
-def write_to_inbox(approval_request: Dict, chat_message: Dict, bot_token: str) -> None:
+def write_to_inbox(approval_request: Dict, chat_message: Dict) -> bool:
     """
     Fallback: write the pending question to the inbox file.
     The agent picks this up on its next turn and responds via the API.
@@ -240,14 +237,19 @@ def write_to_inbox(approval_request: Dict, chat_message: Dict, bot_token: str) -
         except (json.JSONDecodeError, IOError):
             pass
 
-    entry = build_notification(approval_request, chat_message, bot_token)
+    entry = build_notification(approval_request, chat_message)
     inbox.append(entry)
 
-    os.makedirs(os.path.dirname(INBOX_FILE), exist_ok=True)
-    with open(INBOX_FILE, 'w') as f:
-        json.dump(inbox, f, indent=2)
+    try:
+        os.makedirs(os.path.dirname(INBOX_FILE), exist_ok=True)
+        with open(INBOX_FILE, 'w') as f:
+            json.dump(inbox, f, indent=2)
+    except IOError as e:
+        log.error(f"Failed to write inbox file: {e}")
+        return False
 
     log.info(f"Message written to inbox fallback: {INBOX_FILE}")
+    return True
 
 
 # ─────────────────────────────────────────────
@@ -305,14 +307,26 @@ def poll_once(creds: Dict, state: Dict) -> Dict:
 
         log.info(f"[{request_id}] {len(new_user_messages)} new user message(s) — forwarding to agent")
 
+        max_forwarded_created_at = None
         for msg in new_user_messages:
+            forwarded = False
             if notify_url:
-                send_notification(notify_url, bot_token, req, msg)
+                forwarded = send_notification(notify_url, bot_token, req, msg)
+                if not forwarded:
+                    log.warning(f"[{request_id}] notify_url delivery failed, falling back to inbox")
+                    forwarded = write_to_inbox(req, msg)
             else:
-                write_to_inbox(req, msg, bot_token)
+                forwarded = write_to_inbox(req, msg)
 
-        state['last_checks'][request_id] = now
-        save_state(state)
+            created_at = msg.get('created_at', '')
+            if forwarded and created_at and (
+                max_forwarded_created_at is None or created_at > max_forwarded_created_at
+            ):
+                max_forwarded_created_at = created_at
+
+        if max_forwarded_created_at:
+            state['last_checks'][request_id] = max_forwarded_created_at
+            save_state(state)
 
     return state
 

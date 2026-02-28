@@ -61,12 +61,12 @@ AGENTS=(
 
 Each agent needs:
 - Own workspace with context files
-- Credentials file at: `{workspace}/memory/approval-gateway-credentials-simple.md`
+- Credentials file at: `{workspace}/memory/approval-gateway-credentials.md`
 - Unique bot token from app (Settings → Bot Tokens)
 
 ## Credentials File Format
 
-Create: `{workspace}/memory/approval-gateway-credentials-simple.md`
+Create: `{workspace}/memory/approval-gateway-credentials.md`
 
 ```
 token: appr_<bot_token_from_app>

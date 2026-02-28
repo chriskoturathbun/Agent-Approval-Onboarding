@@ -455,6 +455,17 @@ def load_credentials(creds_file: str) -> Dict[str, str]:
     return creds
 
 
+def resolve_default_credentials_file(workspace: str) -> str:
+    """Resolve default credentials file path with backwards compatibility."""
+    preferred = os.path.join(workspace, 'memory/approval-gateway-credentials.md')
+    legacy = os.path.join(workspace, 'memory/approval-gateway-credentials-simple.md')
+    if os.path.exists(preferred):
+        return preferred
+    if os.path.exists(legacy):
+        return legacy
+    return preferred
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Universal multi-agent approval chat daemon'
@@ -475,7 +486,7 @@ def main():
     openclaw_config = load_openclaw_config()
     
     # Load credentials
-    creds_file = args.credentials or os.path.join(args.workspace, 'memory/approval-gateway-credentials-simple.md')
+    creds_file = args.credentials or resolve_default_credentials_file(args.workspace)
     try:
         creds = load_credentials(creds_file)
     except (FileNotFoundError, ValueError) as e:
