@@ -251,3 +251,113 @@ The goal: Be helpful without being annoying. Check in a few times a day, do usef
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.
+
+---
+
+## 💬 Approval Chat — Bidirectional
+
+When a user has questions about a pending approval request, they message you directly through the Clawback Approval app. You must respond as yourself, with your full context and reasoning.
+
+### Incoming: notification via notify_url
+
+The daemon forwards user messages to your `notify_url` as a signed POST:
+
+```
+POST <your notify_url>
+X-Approval-Signature: sha256=<hmac-sha256(body, bot_token)>
+Content-Type: application/json
+```
+
+Payload:
+```json
+{
+  "type": "approval_chat_question",
+  "request_id": "uuid",
+  "message_id": "uuid",
+  "vendor": "Test Restaurant",
+  "amount_cents": 1500,
+  "category": "dining",
+  "reason": "Business dinner with client",
+  "message": "why this vendor?",
+  "full_request": { "...full approval request object..." },
+  "reply_via": {
+    "method": "POST",
+    "url": "https://approvals.clawbackx.com/api/chat-messages",
+    "headers": { "Authorization": "Bearer appr_<your_token>", "Content-Type": "application/json" },
+    "body_template": {
+      "approval_request_id": "uuid",
+      "sender": "agent",
+      "message": "{{your_response}}"
+    }
+  }
+}
+```
+
+**Verify the signature** before trusting the payload:
+```python
+import hmac, hashlib
+expected = "sha256=" + hmac.new(bot_token.encode(), raw_body, hashlib.sha256).hexdigest()
+assert signature_header == expected
+```
+
+**Respond** by replacing `{{your_response}}` and POSTing via `reply_via`:
+```python
+import requests
+payload = reply_via["body_template"].copy()
+payload["message"] = your_actual_response
+requests.post(reply_via["url"], json=payload, headers=reply_via["headers"])
+```
+
+Use `full_request` for complete context when answering. Your response should reflect your actual reasoning — not a template.
+
+### No notify_url? Check the inbox
+
+If no `notify_url` is configured, the daemon writes questions to:
+```
+memory/approval_chat_inbox.json
+```
+
+Check this file during heartbeats or at the start of a session. Clear each entry after responding.
+
+```python
+import json, os
+inbox_file = "memory/approval_chat_inbox.json"
+if os.path.exists(inbox_file):
+    with open(inbox_file) as f:
+        questions = json.load(f)
+    for q in questions:
+        # answer q["message"] using q["full_request"] for context
+        # post via q["reply_via"]
+        pass
+    os.remove(inbox_file)  # clear after responding
+```
+
+### Outgoing: you can initiate messages too
+
+You do not need to wait for a user message to chat. Initiate at any time:
+
+```python
+import requests
+requests.post(
+    "https://approvals.clawbackx.com/api/chat-messages",
+    headers={"Authorization": f"Bearer {bot_token}", "Content-Type": "application/json"},
+    json={
+        "approval_request_id": request_id,
+        "sender": "agent",
+        "message": "I wanted to flag that this vendor has a 48h cancellation window — approve before 6pm?"
+    }
+)
+```
+
+### Register your notify_url
+
+When creating your bot token, include your endpoint:
+
+```bash
+curl -X POST https://approvals.clawbackx.com/api/bot-tokens \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"<uid>","agent_id":"kotubot","agent_name":"Kotubot","notify_url":"http://localhost:8080/api/sessions/kotubot/notify","capabilities":{"chat":true,"auto_approve":false}}'
+```
+
+Or add `notify_url:` to your credentials file and let the daemon handle it.
+
