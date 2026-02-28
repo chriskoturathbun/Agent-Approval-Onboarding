@@ -2,10 +2,14 @@
 """
 Approval Chat Daemon v2
 -----------------------
-Polls the Approval Gateway every 5 seconds for new chat messages on pending
-approval requests. When a new message arrives, it uses the agent's own model
-(via ANTHROPIC_API_KEY) with the full SOUL/USER/MEMORY/AGENTS context to
-generate a response, then posts it back.
+Pure relay daemon. Polls the Approval Gateway for new user chat messages on
+pending approval requests, then forwards them to the live agent via notify_url.
+
+The agent generates its own responses using its full live context and posts
+them back directly via POST /api/chat-messages with its bot token.
+
+If no notify_url is configured, messages are written to the inbox file so the
+agent can pick them up on its next turn.
 
 Usage:
     cd /data/.openclaw/workspace
@@ -17,16 +21,27 @@ Stop:
 Logs:
     tail -f /tmp/approval-daemon-v2.log
 
+Credentials file (memory/approval-gateway-credentials.md):
+    token:      appr_<your_token>
+    agent_id:   kotubot
+    api_base:   https://approvals.clawbackx.com
+    notify_url: http://localhost:8080/api/sessions/kotubot/notify   ← optional
+
 State:
     memory/approval-chat-daemon-state.json
+
+Inbox fallback (when no notify_url):
+    memory/approval_chat_inbox.json
 """
 
+import hashlib
+import hmac
 import json
 import os
 import time
 import logging
 from datetime import datetime, timezone
-from typing import Optional, Dict, List
+from typing import Optional, Dict
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
@@ -37,9 +52,8 @@ from urllib.error import URLError, HTTPError
 WORKSPACE     = '/data/.openclaw/workspace'
 CREDS_FILE    = os.path.join(WORKSPACE, 'memory/approval-gateway-credentials.md')
 STATE_FILE    = os.path.join(WORKSPACE, 'memory/approval-chat-daemon-state.json')
-POLL_INTERVAL = 5   # seconds
-MODEL         = 'claude-haiku-4-5-20251001'   # fast + cheap for chat replies
-MAX_TOKENS    = 512
+INBOX_FILE    = os.path.join(WORKSPACE, 'memory/approval_chat_inbox.json')
+POLL_INTERVAL = 5  # seconds
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,9 +76,10 @@ def load_credentials() -> Dict[str, str]:
         )
 
     creds = {
-        'api_base':  'https://approvals.clawbackx.com',
-        'bot_token': None,
-        'agent_id':  'kotubot',
+        'api_base':   'https://approvals.clawbackx.com',
+        'bot_token':  None,
+        'agent_id':   'kotubot',
+        'notify_url': None,
     }
     with open(CREDS_FILE) as f:
         for line in f:
@@ -78,6 +93,8 @@ def load_credentials() -> Dict[str, str]:
                     creds['api_base'] = value
                 elif key == 'agent_id':
                     creds['agent_id'] = value
+                elif key == 'notify_url':
+                    creds['notify_url'] = value
 
     if not creds['bot_token']:
         raise ValueError(f"No `token:` line in {CREDS_FILE}")
@@ -138,182 +155,99 @@ def api_post(url: str, headers: Dict, payload: Dict) -> Optional[Dict]:
 
 
 # ─────────────────────────────────────────────
-# Context loading
+# Notification helpers
 # ─────────────────────────────────────────────
 
-def load_context_file(filename: str) -> str:
-    path = os.path.join(WORKSPACE, filename)
-    if os.path.exists(path):
-        with open(path) as f:
-            return f.read()
-    return ''
-
-
-def load_agent_context() -> Dict[str, str]:
+def build_notification(approval_request: Dict, chat_message: Dict, bot_token: str) -> Dict:
+    """Build the structured notification payload for the agent."""
     return {
-        'soul':   load_context_file('SOUL.md'),
-        'user':   load_context_file('USER.md'),
-        'memory': load_context_file('MEMORY.md'),
-        'agents': load_context_file('AGENTS.md'),
-        'skill':  load_context_file('SKILL.md'),
-    }
-
-
-# ─────────────────────────────────────────────
-# Model call (Anthropic API)
-# ─────────────────────────────────────────────
-
-def call_model(system_prompt: str, user_message: str) -> Optional[str]:
-    """
-    Call the agent's Claude model with full context.
-    Requires ANTHROPIC_API_KEY in the environment.
-    Returns None on failure so the caller can fall back gracefully.
-    """
-    api_key = os.environ.get('ANTHROPIC_API_KEY')
-    if not api_key:
-        log.warning("ANTHROPIC_API_KEY not set — falling back to template response")
-        return None
-
-    payload = {
-        'model':      MODEL,
-        'max_tokens': MAX_TOKENS,
-        'system':     system_prompt,
-        'messages':   [{'role': 'user', 'content': user_message}],
-    }
-
-    try:
-        data = json.dumps(payload).encode('utf-8')
-        req  = Request(
-            'https://api.anthropic.com/v1/messages',
-            data=data,
-            headers={
-                'x-api-key':         api_key,
-                'anthropic-version': '2023-06-01',
-                'content-type':      'application/json',
-                'User-Agent':        'ApprovalChatDaemon/2.0',
+        'type':        'approval_chat_question',
+        'request_id':  approval_request['id'],
+        'message_id':  chat_message.get('id', ''),
+        'vendor':      approval_request.get('vendor', ''),
+        'amount_cents': approval_request.get('spending_amount_cents', 0),
+        'category':    approval_request.get('category', ''),
+        'reason':      approval_request.get('reason', ''),
+        'message':     chat_message.get('message', ''),
+        'full_request': approval_request,
+        'reply_via': {
+            'method': 'POST',
+            'url':    'https://approvals.clawbackx.com/api/chat-messages',
+            'headers': {
+                'Authorization': f'Bearer {bot_token}',
+                'Content-Type':  'application/json',
             },
-            method='POST',
-        )
-        with urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read().decode())
-            return result['content'][0]['text']
-    except Exception as e:
-        log.warning(f"Model call failed: {e}")
-        return None
+            'body_template': {
+                'approval_request_id': approval_request['id'],
+                'sender':  'agent',
+                'message': '{{your_response}}',
+            },
+        },
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+    }
 
 
-def build_system_prompt(context: Dict[str, str]) -> str:
+def sign_payload(body: bytes, secret: str) -> str:
+    """HMAC-SHA256 sign a payload so the agent can verify it came from the daemon."""
+    return 'sha256=' + hmac.new(secret.encode('utf-8'), body, hashlib.sha256).hexdigest()
+
+
+def send_notification(notify_url: str, bot_token: str,
+                      approval_request: Dict, chat_message: Dict) -> bool:
     """
-    Build the system prompt from the agent's own context files.
-    This gives the model the agent's identity, user knowledge, and memory.
+    POST a signed notification to the agent's notify_url.
+    Retries 3 times with exponential backoff (0s, 1s, 2s).
+    Returns True on success.
     """
-    parts = []
+    payload = build_notification(approval_request, chat_message, bot_token)
+    body    = json.dumps(payload).encode('utf-8')
+    sig     = sign_payload(body, bot_token)
 
-    if context.get('soul'):
-        parts.append(f"# Who You Are\n{context['soul']}")
+    headers = {
+        'Content-Type':          'application/json',
+        'X-Approval-Signature':  sig,
+        'User-Agent':            'ApprovalChatDaemon/2.0',
+    }
 
-    if context.get('user'):
-        parts.append(f"# Your User\n{context['user']}")
+    delays = [0, 1, 2]  # seconds before each retry
+    for attempt, delay in enumerate(delays, start=1):
+        if delay > 0:
+            time.sleep(delay)
+        try:
+            req = Request(notify_url, data=body, headers=headers, method='POST')
+            with urlopen(req, timeout=10) as resp:
+                if resp.status < 300:
+                    log.info(f"Notification delivered to {notify_url}")
+                    return True
+                log.warning(f"notify attempt {attempt}/3 → HTTP {resp.status}")
+        except Exception as e:
+            log.warning(f"notify attempt {attempt}/3 → {e}")
 
-    if context.get('memory'):
-        parts.append(f"# Your Memory\n{context['memory']}")
-
-    if context.get('agents'):
-        parts.append(f"# Agent Instructions\n{context['agents']}")
-
-    if context.get('skill'):
-        parts.append(f"# Skills\n{context['skill']}")
-
-    parts.append("""# Your Current Task
-You are responding to a message sent by your user through the Clawback Approval app.
-The user is asking about a pending spending request that you submitted for their approval.
-
-Guidelines:
-- Answer as yourself using your full identity and context above
-- Be concise (under 120 words) and direct
-- Reference specific details from the request (vendor, amount, reason) where relevant
-- Do NOT tell them to approve or deny — they do that in the app
-- If they ask something you don't know, say so honestly""")
-
-    return "\n\n".join(parts)
+    log.error(f"All notification attempts failed for {notify_url}")
+    return False
 
 
-def build_user_prompt(approval_request: Dict, user_msg: str) -> str:
-    vendor   = approval_request.get('vendor', 'Unknown vendor')
-    amount   = approval_request.get('spending_amount_cents', 0) / 100
-    reason   = approval_request.get('reason', '(no reason provided)')
-    category = approval_request.get('category', '')
-
-    lines = [
-        "The user sent this message about a pending approval request:",
-        f'"{user_msg}"',
-        "",
-        "Request details:",
-        f"  Vendor:   {vendor}",
-        f"  Amount:   ${amount:.2f}",
-    ]
-    if category:
-        lines.append(f"  Category: {category}")
-    lines.append(f"  Reason:   {reason}")
-
-    return "\n".join(lines)
-
-
-# ─────────────────────────────────────────────
-# Response generation
-# ─────────────────────────────────────────────
-
-def generate_response(
-    context: Dict[str, str],
-    approval_request: Dict,
-    new_message: Dict,
-) -> str:
+def write_to_inbox(approval_request: Dict, chat_message: Dict, bot_token: str) -> None:
     """
-    Generate a response using the agent's own model + full context.
-    Falls back to a structured template if the model is unavailable.
+    Fallback: write the pending question to the inbox file.
+    The agent picks this up on its next turn and responds via the API.
     """
-    user_msg = new_message.get('message', '')
+    inbox = []
+    if os.path.exists(INBOX_FILE):
+        try:
+            with open(INBOX_FILE) as f:
+                inbox = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
 
-    # ── Primary: use the agent's model ───────────────────────────────
-    system_prompt = build_system_prompt(context)
-    user_prompt   = build_user_prompt(approval_request, user_msg)
-    response      = call_model(system_prompt, user_prompt)
+    entry = build_notification(approval_request, chat_message, bot_token)
+    inbox.append(entry)
 
-    if response:
-        return response
+    os.makedirs(os.path.dirname(INBOX_FILE), exist_ok=True)
+    with open(INBOX_FILE, 'w') as f:
+        json.dump(inbox, f, indent=2)
 
-    # ── Fallback: structured template (no model available) ───────────
-    vendor   = approval_request.get('vendor', 'Unknown vendor')
-    amount   = approval_request.get('spending_amount_cents', 0) / 100
-    reason   = approval_request.get('reason', '(no reason provided)')
-    category = approval_request.get('category', '')
-    msg_low  = user_msg.lower().strip()
-
-    if any(w in msg_low for w in ['why', 'reason', 'purpose', 'what for', 'explain']):
-        return (
-            f"The reason I submitted this ${amount:.2f} {vendor} request:\n\n"
-            f"{reason}\n\nLet me know if you need anything else before deciding."
-        )
-
-    if any(w in msg_low for w in ['more info', 'details', 'tell me more',
-                                   'elaborate', 'give me more', 'what is', "what's"]):
-        lines = [f"Full details:\n", f"• Vendor:   {vendor}", f"• Amount:   ${amount:.2f}"]
-        if category:
-            lines.append(f"• Category: {category}")
-        lines.append(f"• Reason:   {reason}")
-        return "\n".join(lines)
-
-    if any(w in msg_low for w in ['alternative', 'other option', 'different', 'instead']):
-        return (
-            f"I can explore alternatives to {vendor} if you prefer. "
-            f"Deny this request and let me know your constraints."
-        )
-
-    return (
-        f"You asked: \"{user_msg}\"\n\n"
-        f"{vendor} · ${amount:.2f} — {reason}\n\n"
-        f"Happy to answer any follow-up questions."
-    )
+    log.info(f"Message written to inbox fallback: {INBOX_FILE}")
 
 
 # ─────────────────────────────────────────────
@@ -321,9 +255,18 @@ def generate_response(
 # ─────────────────────────────────────────────
 
 def poll_once(creds: Dict, state: Dict) -> Dict:
-    api_base = creds['api_base']
-    agent_id = creds['agent_id']
-    headers  = _base_headers(creds['bot_token'])
+    """
+    Single poll cycle:
+    1. Fetch pending approvals
+    2. For each: check for new USER messages
+    3. Forward each new message to the agent via notify_url (or inbox fallback)
+    4. Update state
+    """
+    api_base  = creds['api_base']
+    agent_id  = creds['agent_id']
+    bot_token = creds['bot_token']
+    notify_url = creds.get('notify_url')
+    headers   = _base_headers(bot_token)
 
     now = datetime.now(timezone.utc).isoformat()
 
@@ -340,8 +283,6 @@ def poll_once(creds: Dict, state: Dict) -> Dict:
     if not pending:
         return state
 
-    context = load_agent_context()
-
     for req in pending:
         request_id = req['id']
         last_check = state['last_checks'].get(request_id)
@@ -352,34 +293,23 @@ def poll_once(creds: Dict, state: Dict) -> Dict:
 
         messages = messages_data.get('messages', [])
 
-        new_messages = [
+        # Only forward USER messages we haven't seen yet
+        new_user_messages = [
             msg for msg in messages
-            if msg.get('sender') != 'agent'
+            if msg.get('sender') == 'user'
             and (last_check is None or msg.get('created_at', '') > last_check)
         ]
 
-        if not new_messages:
+        if not new_user_messages:
             continue
 
-        log.info(f"[{request_id}] {len(new_messages)} new message(s) from user")
+        log.info(f"[{request_id}] {len(new_user_messages)} new user message(s) — forwarding to agent")
 
-        for msg in new_messages:
-            response_text = generate_response(context, req, msg)
-
-            result = api_post(
-                f"{api_base}/api/chat-messages",
-                headers,
-                {
-                    'approval_request_id': request_id,
-                    'sender':              'agent',
-                    'message':             response_text,
-                }
-            )
-
-            if result:
-                log.info(f"[{request_id}] Response posted")
+        for msg in new_user_messages:
+            if notify_url:
+                send_notification(notify_url, bot_token, req, msg)
             else:
-                log.warning(f"[{request_id}] Failed to post response")
+                write_to_inbox(req, msg, bot_token)
 
         state['last_checks'][request_id] = now
         save_state(state)
@@ -396,10 +326,10 @@ def run():
         log.error(str(e))
         return
 
-    has_key = bool(os.environ.get('ANTHROPIC_API_KEY'))
-    log.info(f"API: {creds['api_base']} | Agent: {creds['agent_id']}")
-    log.info(f"Model: {'claude (active)' if has_key else 'template fallback (no ANTHROPIC_API_KEY)'}")
-    log.info(f"Polling every {POLL_INTERVAL}s — Ctrl+C to stop")
+    notify_url = creds.get('notify_url')
+    log.info(f"API:    {creds['api_base']} | Agent: {creds['agent_id']}")
+    log.info(f"Relay:  {'→ ' + notify_url if notify_url else 'inbox fallback (no notify_url set)'}")
+    log.info(f"Poll:   every {POLL_INTERVAL}s — Ctrl+C to stop")
 
     state = load_state()
 
