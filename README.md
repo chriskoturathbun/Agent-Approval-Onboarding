@@ -46,13 +46,20 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 - Generates context-aware responses (hooks into agent model)
 - Saves state after each response to prevent duplicates
 
-**approval_chat_daemon_multi_agent.py** (✨ NEW - Multi-agent compatible)
+**approval_chat_daemon_universal.py** (✨ **RECOMMENDED** - Universal LLM support)
+- **Works with any LLM provider** (Anthropic, OpenAI, local models, etc.)
+- Auto-detects model from OpenClaw configuration
 - Supports multiple agents with isolated workspaces
-- Generates AI responses using Anthropic API (Claude Sonnet 4.5)
 - Loads agent-specific context (SOUL.md, USER.md, MEMORY.md)
-- Command-line configurable (--workspace, --credentials)
+- Command-line configurable (--workspace, --model)
 - Production-tested with 5-10 second response time
-- Includes launcher scripts for easy management
+- See [UNIVERSAL_DAEMON_GUIDE.md](./UNIVERSAL_DAEMON_GUIDE.md) for full guide
+
+**approval_chat_daemon_multi_agent.py** (Anthropic-only version)
+- Multi-agent compatible (Anthropic Claude only)
+- Generates AI responses using Anthropic API
+- Use if you only need Claude models
+- See [APPROVAL_DAEMON_MULTI_AGENT.md](./APPROVAL_DAEMON_MULTI_AGENT.md)
 
 **new_agent_bootstrap.sh**
 - Automated health check script
@@ -78,28 +85,34 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 
 ### Multi-Agent Daemon System (NEW)
 
-**approval_chat_daemon_multi_agent.py** (15.5 KB)
+**approval_chat_daemon_universal.py** (18.9 KB) - **RECOMMENDED**
+- **Universal LLM support** (Anthropic, OpenAI, local models, etc.)
+- Auto-detects model from OpenClaw configuration
 - Production-ready multi-agent support
-- Uses Anthropic API for AI response generation
 - Workspace-based configuration
 - Isolated state per agent
-- See [APPROVAL_DAEMON_MULTI_AGENT.md](./APPROVAL_DAEMON_MULTI_AGENT.md) for full documentation
+- See [UNIVERSAL_DAEMON_GUIDE.md](./UNIVERSAL_DAEMON_GUIDE.md) for full documentation
+
+**approval_chat_daemon_multi_agent.py** (15.5 KB) - Anthropic-only
+- Claude models only
+- Use if you don't need other providers
+- See [APPROVAL_DAEMON_MULTI_AGENT.md](./APPROVAL_DAEMON_MULTI_AGENT.md)
 
 **Launcher Scripts:**
 - `start_approval_daemons.sh` - Start all configured agent daemons
 - `stop_approval_daemons.sh` - Stop all running daemons
 - `check_approval_daemons.sh` - Check daemon status
 
-**Quick Start:**
+**Quick Start (Universal Daemon):**
 ```bash
-# Start daemon for your agent
-bash start_approval_daemons.sh
+# Auto-detects model from OpenClaw config
+python3 approval_chat_daemon_universal.py --workspace /data/.openclaw/workspace
 
-# Check status
-bash check_approval_daemons.sh
+# Or specify model explicitly
+python3 approval_chat_daemon_universal.py --workspace /data/.openclaw/workspace --model gpt-4
 
-# View logs
-tail -f /tmp/approval-daemon-kotubot.log
+# Check what model will be used
+python3 approval_chat_daemon_universal.py --workspace /data/.openclaw/workspace --once
 ```
 
 See [QUICK_START_DAEMON.md](./QUICK_START_DAEMON.md) for detailed setup.
@@ -139,16 +152,22 @@ Agent wants to spend
 ### Active Systems
 
 **Approval Chat Auto-Responder**
-- **Multi-Agent (Recommended):** `approval_chat_daemon_multi_agent.py`
-  - Supports multiple agents with isolated state
-  - Direct Anthropic API integration (Claude Sonnet 4.5)
+- **Universal (RECOMMENDED):** `approval_chat_daemon_universal.py`
+  - **Works with any LLM** (Anthropic, OpenAI, local models)
+  - Auto-detects model from OpenClaw config
+  - Multi-agent support with isolated state
   - Response time: 5-10 seconds
   - Production-tested and documented
+  - See [UNIVERSAL_DAEMON_GUIDE.md](./UNIVERSAL_DAEMON_GUIDE.md)
+  
+- **Anthropic-Only:** `approval_chat_daemon_multi_agent.py`
+  - Claude models only (Haiku, Sonnet, Opus)
+  - Direct Anthropic API integration
+  - Use if you only need Claude
   
 - **Legacy Single-Agent:** `approval_chat_daemon_v2.py`
   - Original implementation
-  - Pluggable response generation hook
-  - Simpler but less scalable
+  - Not recommended for new deployments
 
 **Approval Gateway Backend**
 - REST API for approval requests, decisions, chat messages
@@ -268,8 +287,9 @@ This onboarding system is open-source. Improvements welcome!
 **Quick reference:** [QUICK_REFERENCE.md](./QUICK_REFERENCE.md)  
 **Bootstrap script:** [new_agent_bootstrap.sh](./new_agent_bootstrap.sh)
 
-**Multi-Agent Daemon:**
-- [APPROVAL_DAEMON_MULTI_AGENT.md](./APPROVAL_DAEMON_MULTI_AGENT.md) - Full documentation
+**Multi-Agent Daemons:**
+- [UNIVERSAL_DAEMON_GUIDE.md](./UNIVERSAL_DAEMON_GUIDE.md) - **Universal daemon guide (RECOMMENDED)**
+- [APPROVAL_DAEMON_MULTI_AGENT.md](./APPROVAL_DAEMON_MULTI_AGENT.md) - Anthropic-only daemon
 - [QUICK_START_DAEMON.md](./QUICK_START_DAEMON.md) - Quick start guide
 - [DAEMON_BUILD_SUMMARY.md](./DAEMON_BUILD_SUMMARY.md) - Technical summary
 
