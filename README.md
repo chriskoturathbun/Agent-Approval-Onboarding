@@ -39,12 +39,20 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 - Memory management protocols
 - Response style guide
 
-**approval_chat_daemon_v2.py**
+**approval_chat_daemon_v2.py** (Legacy single-agent)
 - Background daemon (run once at startup)
 - Polls pending approvals every 5 seconds
 - Detects new user messages in approval chat
 - Generates context-aware responses (hooks into agent model)
 - Saves state after each response to prevent duplicates
+
+**approval_chat_daemon_multi_agent.py** (✨ NEW - Multi-agent compatible)
+- Supports multiple agents with isolated workspaces
+- Generates AI responses using Anthropic API (Claude Sonnet 4.5)
+- Loads agent-specific context (SOUL.md, USER.md, MEMORY.md)
+- Command-line configurable (--workspace, --credentials)
+- Production-tested with 5-10 second response time
+- Includes launcher scripts for easy management
 
 **new_agent_bootstrap.sh**
 - Automated health check script
@@ -67,6 +75,34 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 - `USER.md` - User context template
 - `HEARTBEAT.md` - Periodic tasks template
 - `TOOLS.md` - Tool configurations template
+
+### Multi-Agent Daemon System (NEW)
+
+**approval_chat_daemon_multi_agent.py** (15.5 KB)
+- Production-ready multi-agent support
+- Uses Anthropic API for AI response generation
+- Workspace-based configuration
+- Isolated state per agent
+- See [APPROVAL_DAEMON_MULTI_AGENT.md](./APPROVAL_DAEMON_MULTI_AGENT.md) for full documentation
+
+**Launcher Scripts:**
+- `start_approval_daemons.sh` - Start all configured agent daemons
+- `stop_approval_daemons.sh` - Stop all running daemons
+- `check_approval_daemons.sh` - Check daemon status
+
+**Quick Start:**
+```bash
+# Start daemon for your agent
+bash start_approval_daemons.sh
+
+# Check status
+bash check_approval_daemons.sh
+
+# View logs
+tail -f /tmp/approval-daemon-kotubot.log
+```
+
+See [QUICK_START_DAEMON.md](./QUICK_START_DAEMON.md) for detailed setup.
 
 ---
 
@@ -102,11 +138,17 @@ Agent wants to spend
 
 ### Active Systems
 
-**Approval Chat Auto-Responder** (`approval_chat_daemon_v2.py`)
-- Polls approval requests every 5 seconds
-- Responds to user questions using full agent context (SOUL.md, USER.md, MEMORY.md)
-- Response time: 5-10 seconds
-- Pluggable `generate_response()` hook for any agent model (OpenClaw, Claude, etc.)
+**Approval Chat Auto-Responder**
+- **Multi-Agent (Recommended):** `approval_chat_daemon_multi_agent.py`
+  - Supports multiple agents with isolated state
+  - Direct Anthropic API integration (Claude Sonnet 4.5)
+  - Response time: 5-10 seconds
+  - Production-tested and documented
+  
+- **Legacy Single-Agent:** `approval_chat_daemon_v2.py`
+  - Original implementation
+  - Pluggable response generation hook
+  - Simpler but less scalable
 
 **Approval Gateway Backend**
 - REST API for approval requests, decisions, chat messages
@@ -226,6 +268,11 @@ This onboarding system is open-source. Improvements welcome!
 **Quick reference:** [QUICK_REFERENCE.md](./QUICK_REFERENCE.md)  
 **Bootstrap script:** [new_agent_bootstrap.sh](./new_agent_bootstrap.sh)
 
+**Multi-Agent Daemon:**
+- [APPROVAL_DAEMON_MULTI_AGENT.md](./APPROVAL_DAEMON_MULTI_AGENT.md) - Full documentation
+- [QUICK_START_DAEMON.md](./QUICK_START_DAEMON.md) - Quick start guide
+- [DAEMON_BUILD_SUMMARY.md](./DAEMON_BUILD_SUMMARY.md) - Technical summary
+
 ---
 
 ## 📊 Metrics
@@ -246,4 +293,4 @@ This onboarding system is open-source. Improvements welcome!
 
 **License:** MIT  
 **Created:** February 2026  
-**Last updated:** February 26, 2026
+**Last updated:** February 27, 2026
