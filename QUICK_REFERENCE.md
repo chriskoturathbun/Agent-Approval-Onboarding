@@ -56,7 +56,7 @@ AGENT_ID=$(grep '^agent_id:' /data/.openclaw/workspace/memory/approval-gateway-c
 
 # Get pending approvals
 curl -H "Authorization: Bearer $BOT_TOKEN" \
-  "https://approvals.clawbackx.com/api/bot/pending-approvals?agent_id=$AGENT_ID" | jq
+  "https://approvals.clawbackx.com/api/bot/pending-approvals" | jq
 
 # Get chat messages for an approval
 curl -H "Authorization: Bearer $BOT_TOKEN" \

@@ -1,0 +1,45 @@
+name: Docs Drift Guard
+
+on:
+  pull_request:
+    paths:
+      - '**/*.md'
+      - 'scripts/docs_drift_*.py'
+      - '.github/workflows/docs-drift.yml'
+  schedule:
+    - cron: '0 14 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check docs endpoint references
+        run: python3 scripts/docs_drift_check.py
+
+  autofix:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Auto-fix docs endpoint drift
+        run: python3 scripts/docs_drift_fix.py
+      - name: Verify docs are clean
+        run: python3 scripts/docs_drift_check.py
+      - name: Create pull request if changes exist
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: 'docs: align endpoint references with bot api'
+          title: 'docs: sync endpoint references with /api/bot routes'
+          body: |
+            Automated docs drift update.
+
+            This PR updates stale endpoint references to the canonical bot-auth routes:
+            - `/api/bot/approval-requests`
+            - `/api/bot/pending-approvals`
+          branch: codex/docs-drift-sync
+          delete-branch: true

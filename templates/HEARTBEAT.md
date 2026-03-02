@@ -10,7 +10,7 @@ When heartbeat fires:
 5. Send replies back to approval chat
 
 **Implementation:**
-- Use bot token to fetch approvals: `GET /api/bot/pending-approvals?agent_id=kotubot`
+- Use bot token to fetch approvals: `GET /api/bot/pending-approvals`
 - Check messages: `GET /api/chat-messages/{request_id}`
 - Filter messages newer than last check
 - Reply with full agent context (not keyword matching)

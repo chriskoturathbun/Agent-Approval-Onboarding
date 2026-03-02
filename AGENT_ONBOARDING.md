@@ -125,7 +125,7 @@ Response: { status, request_id }
                   → On next heartbeat:
                         │
                         ▼
-              GET /api/bot/pending-approvals?agent_id=kotubot   ← READ from database
+              GET /api/bot/pending-approvals   ← READ from database
                         │
                         ├── approved  → Execute the purchase, log it
                         ├── denied    → Log the reason, skip the deal
@@ -236,7 +236,7 @@ ls -la /data/.openclaw/workspace/memory/approval-gateway-credentials.md
 # 4. Can fetch pending approvals?
 BOT_TOKEN=$(grep '^token:' /data/.openclaw/workspace/memory/approval-gateway-credentials.md | awk '{print $2}')
 curl -s -H "Authorization: Bearer $BOT_TOKEN" \
-  "https://approvals.clawbackx.com/api/bot/pending-approvals?agent_id=kotubot" | jq '.approvals | length'
+  "https://approvals.clawbackx.com/api/bot/pending-approvals" | jq '.approvals | length'
 
 # 5. State files exist?
 ls /data/.openclaw/workspace/memory/*.json 2>/dev/null || echo "(none yet — created on first use)"
