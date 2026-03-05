@@ -23,6 +23,8 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 
 **Time to full capability:** 5 minutes
 
+**Copy-paste onboarding prompts:** [AGENT_GATEWAY_PROMPTS.md](./AGENT_GATEWAY_PROMPTS.md)
+
 ---
 
 ## 📁 What's Included
@@ -74,6 +76,11 @@ curl https://raw.githubusercontent.com/chriskoturathbun/Agent-Approval-Onboardin
 - Common issues & fixes
 - File paths
 - Credentials reference
+
+**AGENT_GATEWAY_PROMPTS.md**
+- Copy-paste prompts for onboarding agents
+- VPS flow, non-VPS managed (Manus-style), and non-VPS owned Telegram flow
+- Minimal checklist for verifying operational status
 
 **templates/** (Directory)
 - `AGENTS.md` - Operating protocols template
