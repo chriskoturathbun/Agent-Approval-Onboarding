@@ -79,6 +79,11 @@ bash /data/.openclaw/workspace/verify_daemon.sh
 - Save both to: `memory/approval-gateway-credentials.md`
 - ⚠️ Agent ID is user-specific — never hardcode it
 
+**Bot type routing:**
+- `openclaw_vps` / `generic_vps` → in-app approval chat + daemon flow
+- `non_vps` → open external `agent_link`
+- Telegram relay for `non_vps` only when `telegram_control=own`
+
 **ClawbackX:**
 - See: `memory/clawbackx-credentials.md`
 
@@ -121,6 +126,10 @@ bash /data/.openclaw/workspace/verify_daemon.sh
 
 **API authentication fails:**
 → Check `memory/approval-gateway-credentials.md` has valid `token:` and `agent_id:` lines
+
+**Manus bot has no Telegram token control:**
+→ Set `bot_type=non_vps`, `telegram_control=managed`
+→ Use `agent_link` handoff; skip Telegram relay
 
 **Backend not responding:**
 → `curl https://approvals.clawbackx.com/health`

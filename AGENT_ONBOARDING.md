@@ -27,11 +27,33 @@ ls /data/.openclaw/workspace/memory/approval-gateway-credentials.md
 > 1. **Download the Clawback Approval app** on your phone (iOS/Android)
 > 2. Open the app → go to **Settings → Bot Tokens**
 > 3. Copy your **Bot Token** and your **Agent ID**
-> 4. Paste them here and I'll save them to the credentials file
+> 4. Confirm bot runtime type in the app:
+>    - `openclaw_vps` or `generic_vps`
+>    - `non_vps` (external assistant link flow)
+> 5. If `non_vps`, provide:
+>    - `agent_link` (assistant page URL)
+>    - `telegram_control`:
+>      - `own` = user controls Telegram bot token/webhook
+>      - `managed` = centrally managed bot (no Telegram relay setup)
+> 6. Paste token + agent ID here and I'll save credentials
 >
 > Until I have these, I cannot submit or receive spending decisions — the approval layer is off."
 
 Do not proceed with any purchase-related work until the user provides both values. The system is not functional without them.
+
+---
+
+## 🧭 Bot Type Routing (Required)
+
+Token metadata now controls ask/details behavior:
+
+| bot_type | ask/details behavior | daemon expectation | telegram relay |
+|---|---|---|---|
+| `openclaw_vps` | in-app approval chat | yes | optional |
+| `generic_vps` | in-app approval chat | yes | optional |
+| `non_vps` | open external `agent_link` | no/limited | only if `telegram_control=own` |
+
+If `non_vps` + `telegram_control=managed` (common for Manus-native bots), skip Telegram relay setup and use external `agent_link` handoff only.
 
 ---
 
@@ -90,6 +112,8 @@ nohup python3 approval_chat_daemon_v2.py > /tmp/approval-daemon-v2.log 2>&1 &
 ```
 
 The daemon runs in the background, polls approval chat every 5 seconds, and responds to user questions using your model context automatically.
+
+For `non_vps` agents, daemon chat relay may be unavailable by design. In that case use `agent_link` handoff.
 
 ### Step 4 — Verify Everything
 ```bash
@@ -156,6 +180,17 @@ for req in approved:
     if req.get("deal_slug"):
         commit_to_deal(req["deal_slug"])
 ```
+
+---
+
+## 📱 Non-VPS Flow (Manus-Style)
+
+For `bot_type=non_vps`:
+
+1. Submit approvals via `/api/bot/approval-requests` (same as VPS)
+2. On ask/details, open `agent_link` (external assistant page)
+3. Telegram relay is allowed only when `telegram_control=own`
+4. If `telegram_control=managed`, do not attempt Telegram setup
 
 ---
 
@@ -262,6 +297,10 @@ Retrieve bot tokens from the app: **Settings → Bot Tokens**
 **Can't authenticate to Approval Gateway**
 → Check `memory/approval-gateway-credentials.md` has a `token:` line
 → Retrieve a fresh token from the app under Settings → Bot Tokens
+
+**Telegram relay unavailable for Manus bot**
+→ Expected when `bot_type=non_vps` and `telegram_control=managed`
+→ Use external `agent_link` handoff only
 
 **Daemon not running**
 ```bash
